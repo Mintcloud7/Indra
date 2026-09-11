@@ -1,0 +1,16 @@
+{
+  "name": "cmms-indra",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Enterprise CMMS with Multi-SaaS Accounting Integration",
+  "scripts": {
+    "server:dev": "npm run --prefix server dev",
+    "server:build": "npm run --prefix server build",
+    "server:test": "npm run --prefix server test",
+    "client:dev": "npm run --prefix client dev",
+    "client:build": "npm run --prefix client build",
+    "seed": "npm run --prefix server seed",
+    "build": "npm run --prefix server build && npm run --prefix client build",
+    "test": "npm run --prefix server test"
+  }
+}
