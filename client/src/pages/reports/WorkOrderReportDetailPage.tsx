@@ -9,7 +9,7 @@ import Badge from '../../components/ui/Badge';
 import Loading from '../../components/ui/Loading';
 import ErrorState from '../../components/ui/ErrorState';
 
-const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:3001/api';
+const API_URL = import.meta.env.VITE_API_URL || '/api';
 
 const STATUS_COLORS: Record<string, string> = {
   OPEN: 'bg-blue-100 text-blue-700 border-blue-200',
