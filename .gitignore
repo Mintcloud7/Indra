@@ -7,4 +7,3 @@ server/uploads/
 server/.env
 
 .vercel
-api/index.js
