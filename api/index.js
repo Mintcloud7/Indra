@@ -64944,15 +64944,11 @@ var DEFAULT_SETTINGS = {
   mtbf_good_threshold: "720",
   mtbf_warning_threshold: "168"
 };
-var isServerless = !!process.env.VERCEL;
-var upload2 = null;
-if (!isServerless) {
-  const uploadsDir = import_path2.default.resolve(process.cwd(), "uploads");
-  try {
-    if (!import_fs.default.existsSync(uploadsDir)) {
-      import_fs.default.mkdirSync(uploadsDir, { recursive: true });
-    }
-  } catch {
+var uploadsDir = import_path2.default.resolve(process.cwd(), "uploads");
+var upload2;
+try {
+  if (!import_fs.default.existsSync(uploadsDir)) {
+    import_fs.default.mkdirSync(uploadsDir, { recursive: true });
   }
   const storage2 = import_multer2.default.diskStorage({
     destination: (_req, _file, cb) => cb(null, uploadsDir),
@@ -64970,6 +64966,8 @@ if (!isServerless) {
       cb(null, allowed.includes(ext));
     }
   });
+} catch {
+  upload2 = (0, import_multer2.default)({ storage: import_multer2.default.memoryStorage() });
 }
 router14.use(authenticate);
 router14.get("/", requirePermission("settings", "read"), async (req, res, next) => {
@@ -65012,29 +65010,23 @@ router14.put("/", requirePermission("settings", "update"), async (req, res, next
     next(err);
   }
 });
-router14.post("/logo", requirePermission("settings", "update"), async (req, res, next) => {
-  if (isServerless || !upload2) {
-    res.status(501).json({ success: false, message: "File upload not available in serverless mode" });
-    return;
-  }
-  upload2.single("logo")(req, res, async (err) => {
-    if (err || !req.file) {
-      res.status(400).json({ success: false, message: err?.message || "No file uploaded" });
+router14.post("/logo", requirePermission("settings", "update"), upload2.single("logo"), async (req, res, next) => {
+  try {
+    if (!req.file) {
+      res.status(400).json({ success: false, message: "No file uploaded" });
       return;
     }
+    const logoUrl = `/uploads/${req.file.filename}`;
+    const db = await getDb();
     try {
-      const logoUrl = `/uploads/${req.file.filename}`;
-      const db = await getDb();
-      try {
-        await db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)");
-      } catch {
-      }
-      await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["logoUrl", logoUrl]);
-      sendSuccess(res, { logoUrl });
-    } catch (err2) {
-      next(err2);
+      await db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)");
+    } catch {
     }
-  });
+    await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["logoUrl", logoUrl]);
+    sendSuccess(res, { logoUrl });
+  } catch (err) {
+    next(err);
+  }
 });
 var settings_routes_default = router14;
 
