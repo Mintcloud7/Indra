@@ -23,27 +23,34 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   mtbf_warning_threshold: '168',
 };
 
-const uploadsDir = path.resolve(process.cwd(), 'uploads');
-if (!fs.existsSync(uploadsDir)) {
-  fs.mkdirSync(uploadsDir, { recursive: true });
-}
+const isServerless = !!process.env.VERCEL;
 
-const storage = multer.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const ext = path.extname(file.originalname);
-    cb(null, `logo-${Date.now()}${ext}`);
-  },
-});
-const upload = multer({
-  storage,
-  limits: { fileSize: 2 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowed = ['.png', '.jpg', '.jpeg', '.svg', '.webp'];
-    const ext = path.extname(file.originalname).toLowerCase();
-    cb(null, allowed.includes(ext));
-  },
-});
+let upload: multer.Multer | null = null;
+
+if (!isServerless) {
+  const uploadsDir = path.resolve(process.cwd(), 'uploads');
+  try {
+    if (!fs.existsSync(uploadsDir)) {
+      fs.mkdirSync(uploadsDir, { recursive: true });
+    }
+  } catch {}
+  const storage = multer.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const ext = path.extname(file.originalname);
+      cb(null, `logo-${Date.now()}${ext}`);
+    },
+  });
+  upload = multer({
+    storage,
+    limits: { fileSize: 2 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = ['.png', '.jpg', '.jpeg', '.svg', '.webp'];
+      const ext = path.extname(file.originalname).toLowerCase();
+      cb(null, allowed.includes(ext));
+    },
+  });
+}
 
 router.use(authenticate);
 
@@ -89,20 +96,26 @@ router.put('/', requirePermission('settings', 'update'), async (req: AuthRequest
   }
 });
 
-router.post('/logo', requirePermission('settings', 'update'), upload.single('logo'), async (req: AuthRequest, res, next) => {
-  try {
-    if (!req.file) {
-      res.status(400).json({ success: false, message: 'No file uploaded' });
+router.post('/logo', requirePermission('settings', 'update'), async (req: AuthRequest, res, next) => {
+  if (isServerless || !upload) {
+    res.status(501).json({ success: false, message: 'File upload not available in serverless mode' });
+    return;
+  }
+  upload.single('logo')(req, res, async (err) => {
+    if (err || !req.file) {
+      res.status(400).json({ success: false, message: err?.message || 'No file uploaded' });
       return;
     }
-    const logoUrl = `/uploads/${req.file.filename}`;
-    const db = await getDb();
-    try { await db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); } catch {}
-    await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['logoUrl', logoUrl]);
-    sendSuccess(res, { logoUrl });
-  } catch (err) {
-    next(err);
-  }
+    try {
+      const logoUrl = `/uploads/${req.file.filename}`;
+      const db = await getDb();
+      try { await db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); } catch {}
+      await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['logoUrl', logoUrl]);
+      sendSuccess(res, { logoUrl });
+    } catch (err2) {
+      next(err2);
+    }
+  });
 });
 
 export default router;

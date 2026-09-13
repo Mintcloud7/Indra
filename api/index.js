@@ -32691,7 +32691,7 @@ var require_make_middleware = __commonJS({
         if (!is(req, ["multipart"])) return next();
         var options = setup();
         var limits = options.limits;
-        var storage3 = options.storage;
+        var storage2 = options.storage;
         var fileFilter = options.fileFilter;
         var fileStrategy = options.fileStrategy;
         var preservePath = options.preservePath;
@@ -32725,7 +32725,7 @@ var require_make_middleware = __commonJS({
           errorOccured = true;
           pendingWrites.onceZero(function() {
             function remove2(file, cb) {
-              storage3._removeFile(req, file, cb);
+              storage2._removeFile(req, file, cb);
             }
             removeUploadedFiles(uploadedFiles, remove2, function(err, storageErrors) {
               if (err) return done(err);
@@ -32782,7 +32782,7 @@ var require_make_middleware = __commonJS({
               aborting = true;
               abortWithCode("LIMIT_FILE_SIZE", fieldname);
             });
-            storage3._handleFile(req, file, function(err2, info) {
+            storage2._handleFile(req, file, function(err2, info) {
               if (aborting) {
                 appender.removePlaceholder(placeholder);
                 uploadedFiles.push(extend(file, info));
@@ -64944,26 +64944,33 @@ var DEFAULT_SETTINGS = {
   mtbf_good_threshold: "720",
   mtbf_warning_threshold: "168"
 };
-var uploadsDir = import_path2.default.resolve(process.cwd(), "uploads");
-if (!import_fs.default.existsSync(uploadsDir)) {
-  import_fs.default.mkdirSync(uploadsDir, { recursive: true });
+var isServerless = !!process.env.VERCEL;
+var upload2 = null;
+if (!isServerless) {
+  const uploadsDir = import_path2.default.resolve(process.cwd(), "uploads");
+  try {
+    if (!import_fs.default.existsSync(uploadsDir)) {
+      import_fs.default.mkdirSync(uploadsDir, { recursive: true });
+    }
+  } catch {
+  }
+  const storage2 = import_multer2.default.diskStorage({
+    destination: (_req, _file, cb) => cb(null, uploadsDir),
+    filename: (_req, file, cb) => {
+      const ext = import_path2.default.extname(file.originalname);
+      cb(null, `logo-${Date.now()}${ext}`);
+    }
+  });
+  upload2 = (0, import_multer2.default)({
+    storage: storage2,
+    limits: { fileSize: 2 * 1024 * 1024 },
+    fileFilter: (_req, file, cb) => {
+      const allowed = [".png", ".jpg", ".jpeg", ".svg", ".webp"];
+      const ext = import_path2.default.extname(file.originalname).toLowerCase();
+      cb(null, allowed.includes(ext));
+    }
+  });
 }
-var storage2 = import_multer2.default.diskStorage({
-  destination: (_req, _file, cb) => cb(null, uploadsDir),
-  filename: (_req, file, cb) => {
-    const ext = import_path2.default.extname(file.originalname);
-    cb(null, `logo-${Date.now()}${ext}`);
-  }
-});
-var upload2 = (0, import_multer2.default)({
-  storage: storage2,
-  limits: { fileSize: 2 * 1024 * 1024 },
-  fileFilter: (_req, file, cb) => {
-    const allowed = [".png", ".jpg", ".jpeg", ".svg", ".webp"];
-    const ext = import_path2.default.extname(file.originalname).toLowerCase();
-    cb(null, allowed.includes(ext));
-  }
-});
 router14.use(authenticate);
 router14.get("/", requirePermission("settings", "read"), async (req, res, next) => {
   try {
@@ -65005,23 +65012,29 @@ router14.put("/", requirePermission("settings", "update"), async (req, res, next
     next(err);
   }
 });
-router14.post("/logo", requirePermission("settings", "update"), upload2.single("logo"), async (req, res, next) => {
-  try {
-    if (!req.file) {
-      res.status(400).json({ success: false, message: "No file uploaded" });
+router14.post("/logo", requirePermission("settings", "update"), async (req, res, next) => {
+  if (isServerless || !upload2) {
+    res.status(501).json({ success: false, message: "File upload not available in serverless mode" });
+    return;
+  }
+  upload2.single("logo")(req, res, async (err) => {
+    if (err || !req.file) {
+      res.status(400).json({ success: false, message: err?.message || "No file uploaded" });
       return;
     }
-    const logoUrl = `/uploads/${req.file.filename}`;
-    const db = await getDb();
     try {
-      await db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)");
-    } catch {
+      const logoUrl = `/uploads/${req.file.filename}`;
+      const db = await getDb();
+      try {
+        await db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)");
+      } catch {
+      }
+      await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["logoUrl", logoUrl]);
+      sendSuccess(res, { logoUrl });
+    } catch (err2) {
+      next(err2);
     }
-    await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ["logoUrl", logoUrl]);
-    sendSuccess(res, { logoUrl });
-  } catch (err) {
-    next(err);
-  }
+  });
 });
 var settings_routes_default = router14;
 
