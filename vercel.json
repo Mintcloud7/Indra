@@ -1,6 +1,6 @@
 {
-  "installCommand": "npm install --prefix client && npm install --prefix server",
-  "buildCommand": "npm run build --prefix client && cd server && npx esbuild src/vercel-handler.ts --bundle --platform=node --outfile=../api/index.js --format=cjs",
+  "installCommand": "npm install --prefix client",
+  "buildCommand": "npm run build --prefix client",
   "outputDirectory": "client/dist",
   "framework": "vite",
   "functions": {
