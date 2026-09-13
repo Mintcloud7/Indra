@@ -1,49 +1,135 @@
-import { createClient, Client } from '@libsql/client';
-
-let client: Client | null = null;
+let cachedDb: any = null;
 
 export async function getDb() {
-  if (client) return createDbWrapper(client);
+  if (cachedDb) return cachedDb;
 
-  client = createClient({
-    url: process.env.TURSO_DATABASE_URL || 'libsql://indra-mintcloud.aws-ap-northeast-1.turso.io',
-    authToken: process.env.TURSO_AUTH_TOKEN || undefined,
-  });
+  const tursoUrl = process.env.TURSO_DATABASE_URL;
+  const tursoToken = process.env.TURSO_AUTH_TOKEN;
 
-  return createDbWrapper(client);
+  if (tursoUrl && tursoToken) {
+    cachedDb = createHttpDb(tursoUrl, tursoToken);
+  } else {
+    throw new Error('TURSO_DATABASE_URL and TURSO_AUTH_TOKEN must be set');
+  }
+
+  return cachedDb;
 }
 
-function createDbWrapper(c: Client) {
+function createHttpDb(baseUrl: string, authToken: string) {
+  const httpUrl = baseUrl.replace('libsql://', 'https://');
+
+  async function execute(sql: string, args: any[] = []): Promise<any> {
+    const response = await fetch(`${httpUrl}/v2/pipeline`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requests: [
+          { type: 'execute', stmt: { sql, args: args.map(convertArg) } },
+        ],
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Turso HTTP error ${response.status}: ${text}`);
+    }
+
+    const data = await response.json();
+    const result = data.results?.[0]?.response;
+    if (!result) return { columns: [], values: [] };
+
+    if (result.type === 'error') {
+      throw new Error(result.message);
+    }
+
+    return {
+      columns: result.result?.column_names || [],
+      values: (result.result?.rows || []).map((row: any[]) => row),
+    };
+  }
+
+  async function executeBatch(statements: { sql: string; args?: any[] }[]): Promise<void> {
+    const response = await fetch(`${httpUrl}/v2/pipeline`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${authToken}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        requests: statements.map(s => ({
+          type: 'execute',
+          stmt: { sql: s.sql, args: (s.args || []).map(convertArg) },
+        })),
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Turso HTTP batch error ${response.status}: ${text}`);
+    }
+  }
+
+  function convertArg(arg: any): any {
+    if (arg === null || arg === undefined) return { type: 'null' };
+    if (typeof arg === 'number') {
+      if (Number.isInteger(arg)) return { type: 'integer', value: String(arg) };
+      return { type: 'float', value: String(arg) };
+    }
+    if (typeof arg === 'string') return { type: 'text', value: arg };
+    if (typeof arg === 'boolean') return { type: 'integer', value: arg ? '1' : '0' };
+    return { type: 'text', value: String(arg) };
+  }
+
   return {
     exec: async (sql: string, params?: any[]) => {
-      const result = await c.execute({ sql, args: params || [] });
+      const result = await execute(sql, params);
       return [{
         columns: result.columns,
-        values: result.rows.map((row: any) => result.columns.map((col: string) => row[col]))
+        values: result.values,
       }];
     },
     run: async (sql: string, params?: any[]) => {
-      await c.execute({ sql, args: params || [] });
+      await execute(sql, params);
     },
   };
 }
 
 export async function batchExecute(statements: { sql: string; args?: any[] }[]): Promise<void> {
-  if (!client) await getDb();
-  await client!.batch(statements.map(s => ({ sql: s.sql, args: s.args || [] })));
+  const db = await getDb();
+  await (db as any)._batch?.(statements) || executeBatchRaw(statements);
 }
 
-export function scheduleSave(): void {
-  // No-op: Turso handles persistence automatically
-}
+async function executeBatchRaw(statements: { sql: string; args?: any[] }[]) {
+  const tursoUrl = process.env.TURSO_DATABASE_URL!;
+  const tursoToken = process.env.TURSO_AUTH_TOKEN!;
+  const httpUrl = tursoUrl.replace('libsql://', 'https://');
 
-export function saveDb(): void {
-  // No-op: Turso handles persistence automatically
-}
+  const response = await fetch(`${httpUrl}/v2/pipeline`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${tursoToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      requests: statements.map(s => ({
+        type: 'execute',
+        stmt: { sql: s.sql, args: (s.args || []).map((a: any) => {
+          if (a === null || a === undefined) return { type: 'null' };
+          if (typeof a === 'number') return { type: Number.isInteger(a) ? 'integer' : 'float', value: String(a) };
+          return { type: 'text', value: String(a) };
+        })},
+      })),
+    }),
+  });
 
-export async function closeDb(): Promise<void> {
-  if (client) {
-    client.close();
-    client = null;
+  if (!response.ok) {
+    throw new Error(`Turso batch error: ${response.status}`);
   }
 }
+
+export function scheduleSave(): void {}
+export function saveDb(): void {}
+export function closeDb(): void { cachedDb = null; }
