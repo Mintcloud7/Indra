@@ -1,4 +1,3 @@
-import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import { migrate } from './database/migrate';
@@ -57,7 +56,7 @@ async function ensureMigrated() {
   }
 }
 
-export default async function handler(req: any, res: any) {
+module.exports = async (req: any, res: any) => {
   await ensureMigrated();
   return app(req, res);
-}
+};

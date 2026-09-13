@@ -1,15 +1,14 @@
 {
   "installCommand": "npm install --prefix client && npm install --prefix server",
-  "buildCommand": "npm run build --prefix client",
+  "buildCommand": "npm run build --prefix client && cd server && npx esbuild src/vercel-handler.ts --bundle --platform=node --outfile=../api/index.js --format=cjs",
   "outputDirectory": "client/dist",
   "framework": "vite",
-  "builds": [
-    {
-      "src": "api/index.ts",
-      "use": "@vercel/node"
+  "functions": {
+    "api/index.js": {
+      "maxDuration": 30
     }
-  ],
+  },
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "/api/index.ts" }
+    { "source": "/api/(.*)", "destination": "/api/index.js" }
   ]
 }
