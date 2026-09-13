@@ -1,6 +1,6 @@
 {
   "installCommand": "cd server && npm install && cd ../client && npm install",
-  "buildCommand": "cd server && mkdir -p ../api && npx esbuild src/vercel-handler.ts --bundle --platform=node --outfile=../api/index.js --format=cjs && cd ../client && npx vite build",
+  "buildCommand": "cd server && node_modules/.bin/esbuild src/vercel-handler.ts --bundle --platform=node --outfile=../api/index.js --format=cjs && cd ../client && node_modules/.bin/vite build",
   "outputDirectory": "client/dist",
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api" }
