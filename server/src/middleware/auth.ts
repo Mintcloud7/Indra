@@ -3,7 +3,7 @@ import jwt from 'jsonwebtoken';
 import { AuthRequest } from '../shared/types';
 import { UnauthorizedError } from '../shared/errors';
 
-const AUTH_SECRET = process.env.AUTH_SECRET || 'dev-secret-change-in-production';
+const AUTH_SECRET = process.env.AUTH_SECRET || 'dev-secret';
 
 export function authenticate(req: AuthRequest, res: Response, next: NextFunction): void {
   try {
