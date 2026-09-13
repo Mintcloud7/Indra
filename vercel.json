@@ -11,7 +11,7 @@
   },
   "rewrites": [
     { "source": "/api/(.*)", "destination": "/api/index.ts" },
-    { "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot))", "dest": "/client/dist/$1" },
-    { "source": "/(.*)", "dest": "/client/dist/index.html" }
+    { "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot))", "destination": "/client/dist/$1" },
+    { "source": "/(.*)", "destination": "/client/dist/index.html" }
   ]
 }
