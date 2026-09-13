@@ -34,7 +34,7 @@ export class ReportsService {
     if (filters.assignedToId) { where += ` AND wo.assignedToId = ?`; params.push(filters.assignedToId); }
     if (filters.assetId) { where += ` AND wo.assetId = ?`; params.push(filters.assetId); }
 
-    const summaryResult = db.exec(
+    const summaryResult = await db.exec(
       `SELECT 
         COUNT(*) as "totalWorkOrders",
         SUM(CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) as "openCount",
@@ -47,7 +47,7 @@ export class ReportsService {
     );
     const summary = formatRow(summaryResult);
 
-    const byPriorityResult = db.exec(
+    const byPriorityResult = await db.exec(
       `SELECT wo.priority, COUNT(*) as count
        FROM work_orders wo ${where}
        GROUP BY wo.priority`,
@@ -55,7 +55,7 @@ export class ReportsService {
     );
     const byPriority = formatRows(byPriorityResult);
 
-    const byAssetResult = db.exec(
+    const byAssetResult = await db.exec(
       `SELECT a.assetName, a.assetCode, COUNT(*) as count
        FROM work_orders wo
        LEFT JOIN assets a ON wo.assetId = a.id
@@ -66,7 +66,7 @@ export class ReportsService {
     );
     const byAsset = formatRows(byAssetResult);
 
-    const workOrdersResult = db.exec(
+    const workOrdersResult = await db.exec(
       `SELECT wo.woNumber, wo.title, wo.priority, wo.status, wo.createdAt, wo.closedAt,
         a.assetName, a.assetCode,
         u.name as assignedToName
@@ -99,7 +99,7 @@ export class ReportsService {
     if (filters.endDate) { where += ` AND wo.closedAt <= ?`; params.push(filters.endDate); }
     if (filters.assetId) { where += ` AND wo.assetId = ?`; params.push(filters.assetId); }
 
-    const totalsResult = db.exec(
+    const totalsResult = await db.exec(
       `SELECT COALESCE(SUM(wsp.totalCost), 0) as "totalCost",
         COUNT(DISTINCT wo.id) as "woCount"
        FROM work_orders wo
@@ -109,7 +109,7 @@ export class ReportsService {
     );
     const totals = formatRow(totalsResult);
 
-    const byAssetResult = db.exec(
+    const byAssetResult = await db.exec(
       `SELECT a.assetName, a.assetCode,
         COUNT(DISTINCT wo.id) as "woCount",
         COALESCE(SUM(wsp.totalCost), 0) as "totalCost"
@@ -123,7 +123,7 @@ export class ReportsService {
     );
     const byAsset = formatRows(byAssetResult);
 
-    const byMonthResult = db.exec(
+    const byMonthResult = await db.exec(
       `SELECT strftime('%Y-%m', wo.closedAt) as month,
         COUNT(DISTINCT wo.id) as "woCount",
         COALESCE(SUM(wsp.totalCost), 0) as "totalCost"
@@ -136,7 +136,7 @@ export class ReportsService {
     );
     const byMonth = formatRows(byMonthResult);
 
-    const byItemResult = db.exec(
+    const byItemResult = await db.exec(
       `SELECT sp.itemCode, sp.itemName,
         SUM(wsp.usedQuantity) as "totalQuantity",
         COALESCE(SUM(wsp.totalCost), 0) as "totalCost"
@@ -150,7 +150,7 @@ export class ReportsService {
     );
     const byItem = formatRows(byItemResult);
 
-    const byWorkOrderResult = db.exec(
+    const byWorkOrderResult = await db.exec(
       `SELECT wo.id, wo.woNumber, wo.title, wo.closedAt,
         a.assetName, a.assetCode,
         u.name as assignedToName,
@@ -188,7 +188,7 @@ export class ReportsService {
     if (filters.itemId) { where += ` AND wsp.itemId = ?`; params.push(filters.itemId); }
     if (filters.assetId) { where += ` AND wo.assetId = ?`; params.push(filters.assetId); }
 
-    const byItemResult = db.exec(
+    const byItemResult = await db.exec(
       `SELECT sp.itemCode, sp.itemName, sp.unit,
         COUNT(DISTINCT wsp.woId) as "woCount",
         SUM(wsp.usedQuantity) as "totalQuantity",
@@ -203,7 +203,7 @@ export class ReportsService {
     );
     const byItem = formatRows(byItemResult);
 
-    const byAssetResult = db.exec(
+    const byAssetResult = await db.exec(
       `SELECT a.assetName, a.assetCode,
         COUNT(DISTINCT wsp.woId) as "woCount",
         SUM(wsp.usedQuantity) as "totalQuantity",
@@ -218,7 +218,7 @@ export class ReportsService {
     );
     const byAsset = formatRows(byAssetResult);
 
-    const byMonthResult = db.exec(
+    const byMonthResult = await db.exec(
       `SELECT strftime('%Y-%m', wo.closedAt) as month,
         SUM(wsp.usedQuantity) as "totalQuantity",
         COALESCE(SUM(wsp.totalCost), 0) as "totalCost"
@@ -231,7 +231,7 @@ export class ReportsService {
     );
     const byMonth = formatRows(byMonthResult);
 
-    const totalsResult = db.exec(
+    const totalsResult = await db.exec(
       `SELECT SUM(wsp.usedQuantity) as "totalQuantity",
         COALESCE(SUM(wsp.totalCost), 0) as "totalCost"
        FROM work_order_spare_parts wsp
@@ -260,7 +260,7 @@ export class ReportsService {
     if (filters.endDate) { where += ` AND wo.closedAt <= ?`; params.push(filters.endDate); }
     if (filters.assetId) { where += ` AND wo.assetId = ?`; params.push(filters.assetId); }
 
-    const overallResult = db.exec(
+    const overallResult = await db.exec(
       `SELECT 
         COUNT(*) as count,
         AVG((julianday(wo.closedAt) - julianday(wo.startedAt)) * 24) as "avgHours"
@@ -269,7 +269,7 @@ export class ReportsService {
     );
     const overall = formatRow(overallResult);
 
-    const byAssetRowsResult = db.exec(
+    const byAssetRowsResult = await db.exec(
       `SELECT wo.assetId, a.assetName, a.assetCode,
         COUNT(*) as count,
         AVG((julianday(wo.closedAt) - julianday(wo.startedAt)) * 24) as "avgHours"
@@ -289,7 +289,7 @@ export class ReportsService {
       message: r.count < 3 ? 'Insufficient Data' : undefined
     }));
 
-    const monthlyResult = db.exec(
+    const monthlyResult = await db.exec(
       `SELECT strftime('%Y-%m', wo.closedAt) as month,
         AVG((julianday(wo.closedAt) - julianday(wo.startedAt)) * 24) as value
        FROM work_orders wo
@@ -326,7 +326,7 @@ export class ReportsService {
     if (filters.endDate) { where += ` AND wo.createdAt <= ?`; params.push(filters.endDate); }
     if (filters.assetId) { where += ` AND wo.assetId = ?`; params.push(filters.assetId); }
 
-    const assetRowsResult = db.exec(
+    const assetRowsResult = await db.exec(
       `SELECT assetId FROM work_orders wo ${where} GROUP BY assetId`,
       params
     );
@@ -337,7 +337,7 @@ export class ReportsService {
     const byAsset: any[] = [];
 
     for (const assetId of assetIds) {
-      const woResult = db.exec(
+      const woResult = await db.exec(
         `SELECT wo.id, wo.createdAt
          FROM work_orders wo
          WHERE wo.assetId = ? AND wo.status = 'CLOSED'
@@ -348,7 +348,7 @@ export class ReportsService {
 
       if (woRows.length < 2) continue;
 
-      const assetInfoResult = db.exec('SELECT assetName, assetCode FROM assets WHERE id = ?', [assetId]);
+      const assetInfoResult = await db.exec('SELECT assetName, assetCode FROM assets WHERE id = ?', [assetId]);
       const assetInfo = formatRow(assetInfoResult);
 
       const timestamps: number[] = woRows.map((row: any) => new Date(row.createdAt).getTime());
@@ -386,7 +386,7 @@ export class ReportsService {
     // Compute monthly trend: for each asset, compute gaps and group by month of the later WO
     const monthlyGaps: Map<string, number[]> = new Map();
     for (const assetId of assetIds) {
-      const woResult = db.exec(
+      const woResult = await db.exec(
         `SELECT wo.id, wo.assetId, wo.createdAt
          FROM work_orders wo
          WHERE wo.assetId = ? AND wo.status = 'CLOSED'
@@ -420,13 +420,13 @@ export class ReportsService {
 
   async assetHistory(assetId: string): Promise<any> {
     const db = await getDb();
-    const assetResult = db.exec('SELECT * FROM assets WHERE id = ?', [assetId]);
+    const assetResult = await db.exec('SELECT * FROM assets WHERE id = ?', [assetId]);
     const assetObj = formatRow(assetResult);
     if (!assetObj) {
       return null;
     }
 
-    const workOrdersResult = db.exec(
+    const workOrdersResult = await db.exec(
       `SELECT wo.woNumber, wo.title, wo.priority, wo.status, wo.createdAt, wo.closedAt, wo.rootCause,
         u.name as assignedToName, r.name as reportedByName
        FROM work_orders wo
@@ -438,7 +438,7 @@ export class ReportsService {
     );
     const workOrders = formatRows(workOrdersResult);
 
-    const pmResult = db.exec(
+    const pmResult = await db.exec(
       `SELECT pm.title, pm.frequency, pm.nextDueDate, pm.status, pm.createdAt,
         u.name as assignedToName
        FROM preventive_maintenance pm
@@ -449,7 +449,7 @@ export class ReportsService {
     );
     const preventiveMaintenance = formatRows(pmResult);
 
-    const invResult = db.exec(
+    const invResult = await db.exec(
       `SELECT it.*, sp.itemCode, sp.itemName, w.name as warehouseName
        FROM inventory_transactions it
        JOIN spare_parts sp ON it.itemId = sp.id

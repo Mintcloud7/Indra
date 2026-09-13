@@ -3,7 +3,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'path';
 import { migrate } from './database/migrate';
-import { saveDb, closeDb } from './database/connection';
+import { closeDb } from './database/connection';
 import { errorHandler } from './middleware/error';
 import { authenticate } from './middleware/auth';
 
@@ -71,14 +71,12 @@ async function start() {
 process.on('SIGINT', () => {
   console.log('Shutting down...');
   integrationQueueService.stopScheduler();
-  saveDb();
   closeDb();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   integrationQueueService.stopScheduler();
-  saveDb();
   closeDb();
   process.exit(0);
 });

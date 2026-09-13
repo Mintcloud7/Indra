@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '../../database/connection';
+import { getDb } from '../../database/connection';
 import { generateId, nowISO, paginate } from '../../shared/utils';
 import { NotFoundError, BadRequestError } from '../../shared/errors';
 
@@ -31,12 +31,12 @@ export class PrService {
     if (status) { where += ` AND pr.status = ?`; params.push(status); }
     if (itemId) { where += ` AND pr.itemId = ?`; params.push(itemId); }
 
-    const countResult = db.exec(`SELECT COUNT(*) as count FROM purchase_requisitions pr ${where}`, params);
+    const countResult = await db.exec(`SELECT COUNT(*) as count FROM purchase_requisitions pr ${where}`, params);
     const total = (countResult[0]?.values[0]?.[0] as number) || 0;
 
     const { offset, limit: lim } = paginate(page, limit);
     params.push(lim, offset);
-    const dataResult = db.exec(
+    const dataResult = await db.exec(
       `SELECT pr.*, 
               COALESCE(sp.itemCode, pr.customItemCode) as "itemCode",
               COALESCE(sp.itemName, pr.customItemName) as "itemName",
@@ -54,7 +54,7 @@ export class PrService {
 
   async getById(id: string): Promise<any> {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       `SELECT pr.*, 
               COALESCE(sp.itemCode, pr.customItemCode) as "itemCode",
               COALESCE(sp.itemName, pr.customItemName) as "itemName",
@@ -90,7 +90,7 @@ export class PrService {
       itemCode = data.customItemCode || 'CUSTOM';
     } else {
       if (!data.quantity || data.quantity <= 0) throw new BadRequestError('Quantity must be greater than 0');
-      const itemResult = db.exec('SELECT * FROM spare_parts WHERE id = ?', [data.itemId]);
+      const itemResult = await db.exec('SELECT * FROM spare_parts WHERE id = ?', [data.itemId]);
       const item = formatRow(itemResult);
       if (!item) throw new NotFoundError('Spare part not found');
       unit = data.unit || item.unit || 'PCS';
@@ -102,19 +102,18 @@ export class PrService {
 
     const reason = data.reason || (isCustom ? 'Custom purchase' : 'Low stock alert');
 
-    db.run(
+    await db.run(
       `INSERT INTO purchase_requisitions (id, itemId, customItemName, customItemCode, quantity, unit, reason, currentStock, minimumStock, status, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 'DRAFT', ?, ?)`,
       [id, data.itemId || null, data.customItemName || null, data.customItemCode || null, data.quantity, unit, reason, currentStock, minimumStock, now, now]
     );
 
-    saveDb();
     return this.getById(id);
   }
 
   async update(id: string, data: any): Promise<any> {
     const db = await getDb();
-    const existingResult = db.exec('SELECT * FROM purchase_requisitions WHERE id = ?', [id]);
+    const existingResult = await db.exec('SELECT * FROM purchase_requisitions WHERE id = ?', [id]);
     const existing = formatRow(existingResult);
     if (!existing) {
       throw new NotFoundError('Purchase Requisition not found');
@@ -156,19 +155,19 @@ export class PrService {
     params.push(nowISO());
     params.push(id);
 
-    db.run(`UPDATE purchase_requisitions SET ${fields.join(', ')} WHERE id = ?`, params);
+    await db.run(`UPDATE purchase_requisitions SET ${fields.join(', ')} WHERE id = ?`, params);
 
     if (data.status === 'COMPLETED' && existing.status !== 'COMPLETED' && existing.itemId) {
-      const spResult = db.exec('SELECT currentStock FROM spare_parts WHERE id = ?', [existing.itemId]);
+      const spResult = await db.exec('SELECT currentStock FROM spare_parts WHERE id = ?', [existing.itemId]);
       const sp = formatRow(spResult);
       if (sp) {
         const newStock = (sp.currentStock || 0) + (existing.quantity || 0);
-        db.run('UPDATE spare_parts SET currentStock = ? WHERE id = ?', [newStock, existing.itemId]);
+        await db.run('UPDATE spare_parts SET currentStock = ? WHERE id = ?', [newStock, existing.itemId]);
 
         const txId = generateId();
-        const warehouseResult = db.exec('SELECT warehouseId FROM spare_parts WHERE id = ?', [existing.itemId]);
+        const warehouseResult = await db.exec('SELECT warehouseId FROM spare_parts WHERE id = ?', [existing.itemId]);
         const wh = formatRow(warehouseResult);
-        db.run(
+        await db.run(
           `INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, referenceType, referenceId, notes, createdBy, createdAt)
            VALUES (?, ?, ?, 'PR_RECEIVED', ?, 0, 'PURCHASE_REQUISITION', ?, ?, NULL, ?)`,
           [txId, existing.itemId, wh?.warehouseId || null, existing.quantity, id, `PR ${id.substring(0, 8).toUpperCase()} - barang diterima`, nowISO()]
@@ -176,21 +175,19 @@ export class PrService {
       }
     }
 
-    saveDb();
     return this.getById(id);
   }
 
   async remove(id: string): Promise<void> {
     const db = await getDb();
-    const existing = formatRow(db.exec('SELECT id FROM purchase_requisitions WHERE id = ?', [id]));
+    const existing = formatRow(await db.exec('SELECT id FROM purchase_requisitions WHERE id = ?', [id]));
     if (!existing) throw new NotFoundError('Purchase Requisition not found');
-    db.run('DELETE FROM purchase_requisitions WHERE id = ?', [id]);
-    saveDb();
+    await db.run('DELETE FROM purchase_requisitions WHERE id = ?', [id]);
   }
 
   async syncToZahir(id: string): Promise<any> {
     const db = await getDb();
-    const existingResult = db.exec('SELECT * FROM purchase_requisitions WHERE id = ?', [id]);
+    const existingResult = await db.exec('SELECT * FROM purchase_requisitions WHERE id = ?', [id]);
     const existing = formatRow(existingResult);
     if (!existing) {
       throw new NotFoundError('Purchase Requisition not found');
@@ -202,7 +199,7 @@ export class PrService {
 
     const now = nowISO();
 
-    const existingJobResult = db.exec(
+    const existingJobResult = await db.exec(
       `SELECT id FROM integration_jobs 
        WHERE referenceType = 'PURCHASE_REQUISITION' AND referenceId = ? AND status IN ('PENDING', 'PROCESSING')`,
       [id]
@@ -222,19 +219,18 @@ export class PrService {
       reason: existing.reason
     });
 
-    db.run(
+    await db.run(
       `INSERT INTO integration_jobs (id, type, provider, referenceType, referenceId, payload, status, idempotencyKey, createdAt)
        VALUES (?, 'PURCHASE_REQ_SYNC', 'zahir', 'PURCHASE_REQUISITION', ?, ?, 'PENDING', ?, ?)`,
       [jobId, id, payload, `CMMS-PR-${id}-SYNC`, now]
     );
 
-    db.run(
+    await db.run(
       `UPDATE purchase_requisitions SET syncStatus = 'PENDING', updatedAt = ? WHERE id = ?`,
       [now, id]
     );
 
-    saveDb();
-    const result = db.exec('SELECT * FROM integration_jobs WHERE id = ?', [jobId]);
+    const result = await db.exec('SELECT * FROM integration_jobs WHERE id = ?', [jobId]);
     return formatRow(result);
   }
 }

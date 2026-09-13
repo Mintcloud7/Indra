@@ -39,7 +39,7 @@ router.get('/:provider/config', async (req: AuthRequest, res, next) => {
     const { provider } = req.params;
     const db = await getDb();
     const prefix = `${provider}_`;
-    const result = db.exec(
+    const result = await db.exec(
       "SELECT key, value, description FROM integration_configs WHERE key LIKE ?",
       [`${prefix}%`]
     );
@@ -86,12 +86,12 @@ router.put('/:provider/config', async (req: AuthRequest, res, next) => {
         const value = String(body[jsKey]);
         const desc = descMap[dbKey] || key;
 
-        const existingResult = db.exec("SELECT key FROM integration_configs WHERE key = ?", [key]);
+        const existingResult = await db.exec("SELECT key FROM integration_configs WHERE key = ?", [key]);
         const existing = formatRow(existingResult);
         if (existing) {
-          db.run("UPDATE integration_configs SET value = ?, updatedAt = ? WHERE key = ?", [value, now, key]);
+          await db.run("UPDATE integration_configs SET value = ?, updatedAt = ? WHERE key = ?", [value, now, key]);
         } else {
-          db.run(
+          await db.run(
             "INSERT INTO integration_configs (id, key, value, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)",
             [generateId(), key, value, desc, now, now]
           );
@@ -151,10 +151,10 @@ router.get('/logs', async (req: AuthRequest, res, next) => {
     if (req.query.type) { where += ' AND type = ?'; params.push(req.query.type); }
     if (req.query.status) { where += ' AND status = ?'; params.push(req.query.status); }
 
-    const countResult = db.exec(`SELECT COUNT(*) as total FROM integration_logs ${where}`, params);
+    const countResult = await db.exec(`SELECT COUNT(*) as total FROM integration_logs ${where}`, params);
     const total = (countResult[0]?.values[0]?.[0] as number) || 0;
 
-    const dataResult = db.exec(
+    const dataResult = await db.exec(
       `SELECT * FROM integration_logs ${where} ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
       [...params, lim, offset]
     );
@@ -171,7 +171,7 @@ router.get('/failed-jobs', async (req: AuthRequest, res, next) => {
     const params: any[] = [];
     if (req.query.provider) { where += ' AND provider = ?'; params.push(req.query.provider); }
 
-    const dataResult = db.exec(
+    const dataResult = await db.exec(
       `SELECT * FROM integration_jobs ${where} ORDER BY createdAt DESC LIMIT 50`,
       params
     );

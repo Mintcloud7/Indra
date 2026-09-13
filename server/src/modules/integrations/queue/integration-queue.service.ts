@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '../../../database/connection';
+import { getDb } from '../../../database/connection';
 import { generateId, nowISO } from '../../../shared/utils';
 import { NotFoundError, BadRequestError } from '../../../shared/errors';
 import { adapterRegistry, SUPPORTED_PROVIDERS } from '../adapters/adapter-registry';
@@ -63,8 +63,7 @@ export class IntegrationQueueService {
 
     await this.createLog(type, jobProvider, referenceType, referenceId, 'CREATED', null, null, 200, `Job created: ${type}`);
 
-    const result = db.exec('SELECT * FROM integration_jobs WHERE id = ?', [id]);
-    saveDb();
+    const result = await db.exec('SELECT * FROM integration_jobs WHERE id = ?', [id]);
     return formatRow(result);
   }
 
@@ -72,7 +71,7 @@ export class IntegrationQueueService {
     const db = await getDb();
     const now = nowISO();
 
-    const jobResult = db.exec(
+    const jobResult = await db.exec(
       `SELECT * FROM integration_jobs
        WHERE status = 'PENDING' AND nextRetryAt <= ?
        ORDER BY createdAt ASC LIMIT 1`,
@@ -81,7 +80,7 @@ export class IntegrationQueueService {
     const job = formatRow(jobResult);
     if (!job) return null;
 
-    db.run(
+    await db.run(
       "UPDATE integration_jobs SET status = 'PROCESSING', processedAt = ? WHERE id = ?",
       [now, job.id]
     );
@@ -116,14 +115,14 @@ export class IntegrationQueueService {
       const newAttempts = job.attempts + 1;
 
       if (result.success) {
-        db.run(
+        await db.run(
           "UPDATE integration_jobs SET status = 'SUCCESS', attempts = ?, processedAt = ?, externalId = ? WHERE id = ?",
           [newAttempts, now, result.externalId || null, job.id]
         );
         await this.createLog(job.type, provider, job.referenceType, job.referenceId, 'SUCCESS', result.externalId, null, 200, `Synced successfully`);
       } else {
         if (newAttempts >= job.maxAttempts) {
-          db.run(
+          await db.run(
             "UPDATE integration_jobs SET status = 'DEAD_LETTER', attempts = ?, lastError = ?, processedAt = ? WHERE id = ?",
             [newAttempts, result.error || 'Max attempts reached', now, job.id]
           );
@@ -131,7 +130,7 @@ export class IntegrationQueueService {
         } else {
           const nextRetrySeconds = RETRY_SCHEDULE_SECONDS[Math.min(newAttempts, RETRY_SCHEDULE_SECONDS.length - 1)];
           const nextRetry = new Date(Date.now() + nextRetrySeconds * 1000).toISOString();
-          db.run(
+          await db.run(
             "UPDATE integration_jobs SET status = 'PENDING', attempts = ?, lastError = ?, nextRetryAt = ? WHERE id = ?",
             [newAttempts, result.error || null, nextRetry, job.id]
           );
@@ -139,13 +138,12 @@ export class IntegrationQueueService {
         }
       }
 
-      saveDb();
       return { jobId: job.id, status: result.success ? 'SUCCESS' : 'FAILED', error: result.error };
     } catch (err: any) {
       const newAttempts = job.attempts + 1;
       const provider = job.provider || 'zahir';
       if (newAttempts >= job.maxAttempts) {
-        db.run(
+        await db.run(
           "UPDATE integration_jobs SET status = 'DEAD_LETTER', attempts = ?, lastError = ?, processedAt = ? WHERE id = ?",
           [newAttempts, err.message, now, job.id]
         );
@@ -153,20 +151,19 @@ export class IntegrationQueueService {
       } else {
         const nextRetrySeconds = RETRY_SCHEDULE_SECONDS[Math.min(newAttempts, RETRY_SCHEDULE_SECONDS.length - 1)];
         const nextRetry = new Date(Date.now() + nextRetrySeconds * 1000).toISOString();
-        db.run(
+        await db.run(
           "UPDATE integration_jobs SET status = 'PENDING', attempts = ?, lastError = ?, nextRetryAt = ? WHERE id = ?",
           [newAttempts, err.message, nextRetry, job.id]
         );
         await this.createLog(job.type, provider, job.referenceType, job.referenceId, 'ERROR', null, err.message, 500, err.message);
       }
-      saveDb();
       return { jobId: job.id, status: 'FAILED', error: err.message };
     }
   }
 
   async retryJob(id: string): Promise<any> {
     const db = await getDb();
-    const jobResult = db.exec("SELECT * FROM integration_jobs WHERE id = ?", [id]);
+    const jobResult = await db.exec("SELECT * FROM integration_jobs WHERE id = ?", [id]);
     const job = formatRow(jobResult);
     if (!job) throw new NotFoundError('Integration job not found');
     if (job.status !== 'FAILED' && job.status !== 'DEAD_LETTER') {
@@ -174,15 +171,14 @@ export class IntegrationQueueService {
     }
 
     const nextRetry = new Date(Date.now() + RETRY_SCHEDULE_SECONDS[0] * 1000).toISOString();
-    db.run(
+    await db.run(
       "UPDATE integration_jobs SET status = 'PENDING', attempts = 0, nextRetryAt = ?, lastError = NULL WHERE id = ?",
       [nextRetry, id]
     );
 
     await this.createLog(job.type, job.provider || 'zahir', job.referenceType, job.referenceId, 'MANUAL_RETRY', null, null, 200, 'Manually queued for retry');
 
-    saveDb();
-    const result = db.exec('SELECT * FROM integration_jobs WHERE id = ?', [id]);
+    const result = await db.exec('SELECT * FROM integration_jobs WHERE id = ?', [id]);
     return formatRow(result);
   }
 
@@ -230,7 +226,7 @@ export class IntegrationQueueService {
     if (filters.type) { where += ' AND type = ?'; params.push(filters.type); }
     if (filters.provider) { where += ' AND provider = ?'; params.push(filters.provider); }
 
-    const result = db.exec(
+    const result = await db.exec(
       `SELECT * FROM integration_jobs ${where} ORDER BY createdAt DESC`,
       params
     );
@@ -247,7 +243,7 @@ export class IntegrationQueueService {
     if (filters.provider) { where += ' AND provider = ?'; params.push(filters.provider); }
     if (filters.referenceType) { where += ' AND referenceType = ?'; params.push(filters.referenceType); }
 
-    const result = db.exec(
+    const result = await db.exec(
       `SELECT * FROM integration_logs ${where} ORDER BY createdAt DESC`,
       params
     );
@@ -256,7 +252,7 @@ export class IntegrationQueueService {
 
   async getDeadLetterJobs(): Promise<any[]> {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       "SELECT * FROM integration_jobs WHERE status = 'DEAD_LETTER' ORDER BY createdAt DESC"
     );
     return formatRows(result);
@@ -275,7 +271,7 @@ export class IntegrationQueueService {
   ): Promise<void> {
     try {
       const db = await getDb();
-      db.run(
+      await db.run(
         `INSERT INTO integration_logs (id, type, provider, referenceType, referenceId, status, externalId, error, responseStatus, responseMessage, createdAt)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         [

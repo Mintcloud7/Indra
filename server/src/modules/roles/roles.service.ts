@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '../../database/connection';
+import { getDb } from '../../database/connection';
 import { NotFoundError, ConflictError } from '../../shared/errors';
 import { generateId, nowISO } from '../../shared/utils';
 
@@ -37,7 +37,7 @@ export interface UpdateRoleInput {
 export class RolesService {
   async list() {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       `SELECT r.id, r.name, r.description, r.createdAt, r.updatedAt,
               (SELECT COUNT(*) FROM role_permissions rp WHERE rp.roleId = r.id) as permissionCount
        FROM roles r
@@ -48,7 +48,7 @@ export class RolesService {
 
   async getById(id: string) {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       "SELECT id, name, description, createdAt, updatedAt FROM roles WHERE id = ?", [id]
     );
     const row = formatRow(result);
@@ -56,7 +56,7 @@ export class RolesService {
       throw new NotFoundError('Role not found');
     }
 
-    const permissionsResult = db.exec(
+    const permissionsResult = await db.exec(
       `SELECT p.id, p.name, p.module, p.action, p.description
        FROM permissions p
        JOIN role_permissions rp ON p.id = rp.permissionId
@@ -71,7 +71,7 @@ export class RolesService {
 
   async create(data: CreateRoleInput) {
     const db = await getDb();
-    const existingResult = db.exec("SELECT id FROM roles WHERE name = ?", [data.name]);
+    const existingResult = await db.exec("SELECT id FROM roles WHERE name = ?", [data.name]);
     const existing = formatRow(existingResult);
     if (existing) {
       throw new ConflictError('Role name already exists');
@@ -80,7 +80,7 @@ export class RolesService {
     const id = generateId();
     const now = nowISO();
 
-    db.run(
+    await db.run(
       `INSERT INTO roles (id, name, description, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?)`,
       [id, data.name, data.description || null, now, now]
@@ -88,27 +88,26 @@ export class RolesService {
 
     if (data.permissionIds && data.permissionIds.length > 0) {
       for (const permissionId of data.permissionIds) {
-        db.run(
+        await db.run(
           "INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)",
           [generateId(), id, permissionId]
         );
       }
     }
 
-    saveDb();
     return this.getById(id);
   }
 
   async update(id: string, data: UpdateRoleInput) {
     const db = await getDb();
-    const existingResult = db.exec("SELECT id FROM roles WHERE id = ?", [id]);
+    const existingResult = await db.exec("SELECT id FROM roles WHERE id = ?", [id]);
     const existing = formatRow(existingResult);
     if (!existing) {
       throw new NotFoundError('Role not found');
     }
 
     if (data.name) {
-      const nameCheckResult = db.exec("SELECT id FROM roles WHERE name = ? AND id != ?", [data.name, id]);
+      const nameCheckResult = await db.exec("SELECT id FROM roles WHERE name = ? AND id != ?", [data.name, id]);
       const nameCheck = formatRow(nameCheckResult);
       if (nameCheck) {
         throw new ConflictError('Role name already exists');
@@ -125,32 +124,31 @@ export class RolesService {
       updates.push('updatedAt = ?');
       params.push(nowISO());
       params.push(id);
-      db.run(`UPDATE roles SET ${updates.join(', ')} WHERE id = ?`, params);
+      await db.run(`UPDATE roles SET ${updates.join(', ')} WHERE id = ?`, params);
     }
 
     if (data.permissionIds !== undefined) {
-      db.run("DELETE FROM role_permissions WHERE roleId = ?", [id]);
+      await db.run("DELETE FROM role_permissions WHERE roleId = ?", [id]);
       for (const permissionId of data.permissionIds) {
-        db.run(
+        await db.run(
           "INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)",
           [generateId(), id, permissionId]
         );
       }
     }
 
-    saveDb();
     return this.getById(id);
   }
 
   async delete(id: string) {
     const db = await getDb();
-    const existingResult = db.exec("SELECT id FROM roles WHERE id = ?", [id]);
+    const existingResult = await db.exec("SELECT id FROM roles WHERE id = ?", [id]);
     const existing = formatRow(existingResult);
     if (!existing) {
       throw new NotFoundError('Role not found');
     }
 
-    const usersWithRoleResult = db.exec(
+    const usersWithRoleResult = await db.exec(
       "SELECT COUNT(*) as count FROM user_roles WHERE roleId = ?", [id]
     );
     const count = (usersWithRoleResult[0]?.values[0]?.[0] as number) || 0;
@@ -158,14 +156,13 @@ export class RolesService {
       throw new ConflictError('Cannot delete role that is assigned to users');
     }
 
-    db.run("DELETE FROM role_permissions WHERE roleId = ?", [id]);
-    db.run("DELETE FROM roles WHERE id = ?", [id]);
-    saveDb();
+    await db.run("DELETE FROM role_permissions WHERE roleId = ?", [id]);
+    await db.run("DELETE FROM roles WHERE id = ?", [id]);
   }
 
   async getAllPermissions() {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       `SELECT id, name, module, action, description
        FROM permissions
        ORDER BY module, action`

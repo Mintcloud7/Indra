@@ -1,5 +1,5 @@
 import bcrypt from 'bcryptjs';
-import { getDb, saveDb } from '../../database/connection';
+import { getDb } from '../../database/connection';
 import { NotFoundError, ConflictError, BadRequestError } from '../../shared/errors';
 import { generateId, nowISO, paginate } from '../../shared/utils';
 
@@ -59,14 +59,14 @@ export class UsersService {
     }
 
     const countParams = [...params];
-    const countResult = db.exec(
+    const countResult = await db.exec(
       `SELECT COUNT(*) as total FROM users u ${whereClause}`,
       countParams
     );
     const total = (countResult[0]?.values[0]?.[0] as number) || 0;
 
     params.push(pageSize, offset);
-    const dataResult = db.exec(
+    const dataResult = await db.exec(
       `SELECT u.id, u.username, u.email, u.name, u.phone, u.avatar, u.isActive, u.createdAt, u.updatedAt
        FROM users u ${whereClause}
        ORDER BY u.createdAt DESC
@@ -77,7 +77,7 @@ export class UsersService {
     const rows = formatRows(dataResult);
     const users = [];
     for (const row of rows) {
-      const rolesResult = db.exec(
+      const rolesResult = await db.exec(
         `SELECT r.id, r.name FROM roles r JOIN user_roles ur ON r.id = ur.roleId WHERE ur.userId = ?`,
         [row.id]
       );
@@ -93,7 +93,7 @@ export class UsersService {
 
   async getById(id: string) {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       "SELECT id, email, name, phone, avatar, isActive, createdAt, updatedAt FROM users WHERE id = ?",
       [id]
     );
@@ -102,7 +102,7 @@ export class UsersService {
       throw new NotFoundError('User not found');
     }
 
-    const rolesResult = db.exec(
+    const rolesResult = await db.exec(
       `SELECT r.id, r.name FROM roles r JOIN user_roles ur ON r.id = ur.roleId WHERE ur.userId = ?`, [id]
     );
     const roles = formatRows(rolesResult);
@@ -116,7 +116,7 @@ export class UsersService {
   async create(data: CreateUserInput) {
     const db = await getDb();
     if (data.email) {
-      const existingResult = db.exec("SELECT id FROM users WHERE email = ?", [data.email]);
+      const existingResult = await db.exec("SELECT id FROM users WHERE email = ?", [data.email]);
       const existing = formatRow(existingResult);
       if (existing) {
         throw new ConflictError('Email already exists');
@@ -128,7 +128,7 @@ export class UsersService {
     const now = nowISO();
     const username = data.username || data.name.toLowerCase().replace(/\s+/g, '') + '_' + Date.now().toString(36);
 
-    db.run(
+    await db.run(
       `INSERT INTO users (id, username, email, password, name, phone, avatar, isActive, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, username, data.email || null, hashedPassword, data.name, data.phone || null, data.avatar || null,
@@ -137,27 +137,26 @@ export class UsersService {
 
     if (data.roleIds && data.roleIds.length > 0) {
       for (const roleId of data.roleIds) {
-        db.run(
+        await db.run(
           "INSERT INTO user_roles (id, userId, roleId) VALUES (?, ?, ?)",
           [generateId(), id, roleId]
         );
       }
     }
 
-    saveDb();
     return this.getById(id);
   }
 
   async update(id: string, data: UpdateUserInput) {
     const db = await getDb();
-    const existingResult = db.exec("SELECT id FROM users WHERE id = ?", [id]);
+    const existingResult = await db.exec("SELECT id FROM users WHERE id = ?", [id]);
     const existing = formatRow(existingResult);
     if (!existing) {
       throw new NotFoundError('User not found');
     }
 
     if (data.email) {
-      const emailCheckResult = db.exec("SELECT id FROM users WHERE email = ? AND id != ?", [data.email, id]);
+      const emailCheckResult = await db.exec("SELECT id FROM users WHERE email = ? AND id != ?", [data.email, id]);
       const emailCheck = formatRow(emailCheckResult);
       if (emailCheck) {
         throw new ConflictError('Email already exists');
@@ -165,7 +164,7 @@ export class UsersService {
     }
 
     if (data.username) {
-      const usernameCheckResult = db.exec("SELECT id FROM users WHERE username = ? AND id != ?", [data.username, id]);
+      const usernameCheckResult = await db.exec("SELECT id FROM users WHERE username = ? AND id != ?", [data.username, id]);
       const usernameCheck = formatRow(usernameCheckResult);
       if (usernameCheck) {
         throw new ConflictError('Username already exists');
@@ -191,39 +190,37 @@ export class UsersService {
       updates.push('updatedAt = ?');
       params.push(nowISO());
       params.push(id);
-      db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
+      await db.run(`UPDATE users SET ${updates.join(', ')} WHERE id = ?`, params);
     }
 
     if (data.roleIds !== undefined) {
-      db.run("DELETE FROM user_roles WHERE userId = ?", [id]);
+      await db.run("DELETE FROM user_roles WHERE userId = ?", [id]);
       for (const roleId of data.roleIds) {
-        db.run(
+        await db.run(
           "INSERT INTO user_roles (id, userId, roleId) VALUES (?, ?, ?)",
           [generateId(), id, roleId]
         );
       }
     }
 
-    saveDb();
     return this.getById(id);
   }
 
   async delete(id: string) {
     const db = await getDb();
-    const existingResult = db.exec("SELECT id FROM users WHERE id = ?", [id]);
+    const existingResult = await db.exec("SELECT id FROM users WHERE id = ?", [id]);
     const existing = formatRow(existingResult);
     if (!existing) {
       throw new NotFoundError('User not found');
     }
 
-    db.run("DELETE FROM user_roles WHERE userId = ?", [id]);
-    db.run("DELETE FROM users WHERE id = ?", [id]);
-    saveDb();
+    await db.run("DELETE FROM user_roles WHERE userId = ?", [id]);
+    await db.run("DELETE FROM users WHERE id = ?", [id]);
   }
 
   async getTechnicians() {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       `SELECT u.id, u.email, u.name, u.phone
        FROM users u
        JOIN user_roles ur ON u.id = ur.userId
@@ -237,7 +234,7 @@ export class UsersService {
 
   async changePassword(userId: string, currentPassword: string, newPassword: string) {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       "SELECT id, password FROM users WHERE id = ?",
       [userId]
     );
@@ -252,11 +249,10 @@ export class UsersService {
     }
 
     const hashed = await bcrypt.hash(newPassword, 12);
-    db.run(
+    await db.run(
       "UPDATE users SET password = ?, updatedAt = ? WHERE id = ?",
       [hashed, nowISO(), userId]
     );
-    saveDb();
   }
 }
 

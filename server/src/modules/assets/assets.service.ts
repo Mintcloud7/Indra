@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '../../database/connection';
+import { getDb } from '../../database/connection';
 import { generateId, nowISO, paginate } from '../../shared/utils';
 import { NotFoundError, BadRequestError, ConflictError } from '../../shared/errors';
 
@@ -49,11 +49,11 @@ export async function list(
     params.push(status);
   }
 
-  const countResult = db.exec(`SELECT COUNT(*) as total FROM assets ${whereClause}`, params);
+  const countResult = await db.exec(`SELECT COUNT(*) as total FROM assets ${whereClause}`, params);
   const total = (countResult[0]?.values[0]?.[0] as number) || 0;
 
   params.push(lim, offset);
-  const dataResult = db.exec(
+  const dataResult = await db.exec(
     `SELECT * FROM assets ${whereClause} ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
     params
   );
@@ -63,19 +63,19 @@ export async function list(
 
 export async function getById(id: string) {
   const db = await getDb();
-  const result = db.exec('SELECT * FROM assets WHERE id = ?', [id]);
+  const result = await db.exec('SELECT * FROM assets WHERE id = ?', [id]);
   const asset = formatRow(result);
   if (!asset) {
     throw new NotFoundError('Asset not found');
   }
 
-  const docsResult = db.exec(
+  const docsResult = await db.exec(
     'SELECT * FROM asset_documents WHERE assetId = ? ORDER BY uploadedAt DESC',
     [id]
   );
   asset.documents = formatRows(docsResult);
 
-  const metersResult = db.exec(
+  const metersResult = await db.exec(
     'SELECT * FROM asset_meters WHERE assetId = ? ORDER BY createdAt DESC',
     [id]
   );
@@ -99,7 +99,7 @@ export async function create(data: {
   description?: string;
 }) {
   const db = await getDb();
-  const existingResult = db.exec('SELECT id FROM assets WHERE assetCode = ?', [data.assetCode]);
+  const existingResult = await db.exec('SELECT id FROM assets WHERE assetCode = ?', [data.assetCode]);
   const existing = formatRow(existingResult);
   if (existing) {
     throw new ConflictError('Asset code already exists');
@@ -108,7 +108,7 @@ export async function create(data: {
   const id = generateId();
   const now = nowISO();
 
-  db.run(
+  await db.run(
     `INSERT INTO assets (id, assetCode, assetName, assetType, location, serialNumber, manufacturer, model, purchaseDate, warrantyStart, warrantyEnd, status, description, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
@@ -119,7 +119,6 @@ export async function create(data: {
     ]
   );
 
-  saveDb();
   return getById(id);
 }
 
@@ -141,14 +140,14 @@ export async function update(
   }>
 ) {
   const db = await getDb();
-  const existingResult = db.exec('SELECT * FROM assets WHERE id = ?', [id]);
+  const existingResult = await db.exec('SELECT * FROM assets WHERE id = ?', [id]);
   const existing = formatRow(existingResult);
   if (!existing) {
     throw new NotFoundError('Asset not found');
   }
 
   if (data.assetCode) {
-    const codeCheckResult = db.exec(
+    const codeCheckResult = await db.exec(
       'SELECT id FROM assets WHERE assetCode = ? AND id != ?',
       [data.assetCode, id]
     );
@@ -184,36 +183,36 @@ export async function update(
   params.push(nowISO());
   params.push(id);
 
-  db.run(`UPDATE assets SET ${fields.join(', ')} WHERE id = ?`, params);
+  await db.run(`UPDATE assets SET ${fields.join(', ')} WHERE id = ?`, params);
 
-  const newValueResult = db.exec('SELECT * FROM assets WHERE id = ?', [id]);
+  const newValueResult = await db.exec('SELECT * FROM assets WHERE id = ?', [id]);
   const newValue = formatRow(newValueResult);
-  saveDb();
+
   return { newValue, oldValue, asset: newValue };
 }
 
 export async function remove(id: string) {
   const db = await getDb();
-  const existingResult = db.exec('SELECT * FROM assets WHERE id = ?', [id]);
+  const existingResult = await db.exec('SELECT * FROM assets WHERE id = ?', [id]);
   const existing = formatRow(existingResult);
   if (!existing) {
     throw new NotFoundError('Asset not found');
   }
 
-  db.run('DELETE FROM assets WHERE id = ?', [id]);
-  saveDb();
+  await db.run('DELETE FROM assets WHERE id = ?', [id]);
+
   return existing;
 }
 
 export async function getDocuments(assetId: string) {
   const db = await getDb();
-  const assetResult = db.exec('SELECT id FROM assets WHERE id = ?', [assetId]);
+  const assetResult = await db.exec('SELECT id FROM assets WHERE id = ?', [assetId]);
   const asset = formatRow(assetResult);
   if (!asset) {
     throw new NotFoundError('Asset not found');
   }
 
-  const result = db.exec(
+  const result = await db.exec(
     'SELECT * FROM asset_documents WHERE assetId = ? ORDER BY uploadedAt DESC',
     [assetId]
   );
@@ -226,7 +225,7 @@ export async function createDocument(
   uploadedBy: string
 ) {
   const db = await getDb();
-  const assetResult = db.exec('SELECT id FROM assets WHERE id = ?', [assetId]);
+  const assetResult = await db.exec('SELECT id FROM assets WHERE id = ?', [assetId]);
   const asset = formatRow(assetResult);
   if (!asset) {
     throw new NotFoundError('Asset not found');
@@ -234,26 +233,26 @@ export async function createDocument(
 
   const id = generateId();
 
-  db.run(
+  await db.run(
     `INSERT INTO asset_documents (id, assetId, filename, type, path, size, uploadedBy, uploadedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
     [id, assetId, data.filename, data.type, data.path, data.size, uploadedBy, nowISO()]
   );
 
-  const result = db.exec('SELECT * FROM asset_documents WHERE id = ?', [id]);
-  saveDb();
+  const result = await db.exec('SELECT * FROM asset_documents WHERE id = ?', [id]);
+
   return formatRow(result);
 }
 
 export async function getMeters(assetId: string) {
   const db = await getDb();
-  const assetResult = db.exec('SELECT id FROM assets WHERE id = ?', [assetId]);
+  const assetResult = await db.exec('SELECT id FROM assets WHERE id = ?', [assetId]);
   const asset = formatRow(assetResult);
   if (!asset) {
     throw new NotFoundError('Asset not found');
   }
 
-  const result = db.exec(
+  const result = await db.exec(
     'SELECT * FROM asset_meters WHERE assetId = ? ORDER BY createdAt DESC',
     [assetId]
   );
@@ -265,7 +264,7 @@ export async function createMeter(
   data: { meterType: string; unit: string; description?: string }
 ) {
   const db = await getDb();
-  const assetResult = db.exec('SELECT id FROM assets WHERE id = ?', [assetId]);
+  const assetResult = await db.exec('SELECT id FROM assets WHERE id = ?', [assetId]);
   const asset = formatRow(assetResult);
   if (!asset) {
     throw new NotFoundError('Asset not found');
@@ -273,14 +272,14 @@ export async function createMeter(
 
   const id = generateId();
 
-  db.run(
+  await db.run(
     `INSERT INTO asset_meters (id, assetId, meterType, unit, description, createdAt)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [id, assetId, data.meterType, data.unit, data.description || null, nowISO()]
   );
 
-  const result = db.exec('SELECT * FROM asset_meters WHERE id = ?', [id]);
-  saveDb();
+  const result = await db.exec('SELECT * FROM asset_meters WHERE id = ?', [id]);
+
   return formatRow(result);
 }
 
@@ -291,7 +290,7 @@ export async function addMeterReading(
   recordedBy: string
 ) {
   const db = await getDb();
-  const meterResult = db.exec('SELECT id FROM asset_meters WHERE id = ? AND assetId = ?', [meterId, assetId]);
+  const meterResult = await db.exec('SELECT id FROM asset_meters WHERE id = ? AND assetId = ?', [meterId, assetId]);
   const meter = formatRow(meterResult);
   if (!meter) {
     throw new NotFoundError('Meter not found for this asset');
@@ -299,26 +298,26 @@ export async function addMeterReading(
 
   const id = generateId();
 
-  db.run(
+  await db.run(
     `INSERT INTO asset_meter_readings (id, meterId, assetId, value, readingDate, recordedBy)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [id, meterId, assetId, value, nowISO(), recordedBy]
   );
 
-  const result = db.exec('SELECT * FROM asset_meter_readings WHERE id = ?', [id]);
-  saveDb();
+  const result = await db.exec('SELECT * FROM asset_meter_readings WHERE id = ?', [id]);
+
   return formatRow(result);
 }
 
 export async function getHistory(assetId: string) {
   const db = await getDb();
-  const assetResult = db.exec('SELECT id FROM assets WHERE id = ?', [assetId]);
+  const assetResult = await db.exec('SELECT id FROM assets WHERE id = ?', [assetId]);
   const asset = formatRow(assetResult);
   if (!asset) {
     throw new NotFoundError('Asset not found');
   }
 
-  const result = db.exec(
+  const result = await db.exec(
     `SELECT wo.*, u.name as assignedToName, r.name as reporterName
      FROM work_orders wo
      LEFT JOIN users u ON wo.assignedToId = u.id
@@ -332,7 +331,7 @@ export async function getHistory(assetId: string) {
 
 export async function getWorkOrders(assetId: string) {
   const db = await getDb();
-  const result = db.exec(
+  const result = await db.exec(
     `SELECT wo.*, u.name as assignedToName
      FROM work_orders wo
      LEFT JOIN users u ON wo.assignedToId = u.id
@@ -345,7 +344,7 @@ export async function getWorkOrders(assetId: string) {
 
 export async function getPreventiveMaintenance(assetId: string) {
   const db = await getDb();
-  const result = db.exec(
+  const result = await db.exec(
     `SELECT pm.* FROM preventive_maintenance pm
      WHERE pm.assetId = ?
      ORDER BY pm.nextDueDate ASC`,

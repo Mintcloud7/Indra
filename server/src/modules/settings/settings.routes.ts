@@ -53,7 +53,7 @@ router.get('/', requirePermission('settings', 'read'), async (req: AuthRequest, 
     let settings = { ...DEFAULT_SETTINGS };
 
     try {
-      const result = db.exec("SELECT key, value FROM settings");
+      const result = await db.exec("SELECT key, value FROM settings");
       if (result[0]) {
         for (const row of result[0].values) {
           const key = row[0] as string;
@@ -74,10 +74,10 @@ router.get('/', requirePermission('settings', 'read'), async (req: AuthRequest, 
 router.put('/', requirePermission('settings', 'update'), async (req: AuthRequest, res, next) => {
   try {
     const db = await getDb();
-    try { db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); } catch {}
+    try { await db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); } catch {}
 
     for (const [key, value] of Object.entries(req.body)) {
-      db.run(
+      await db.run(
         "INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)",
         [key, String(value)]
       );
@@ -97,8 +97,8 @@ router.post('/logo', requirePermission('settings', 'update'), upload.single('log
     }
     const logoUrl = `/uploads/${req.file.filename}`;
     const db = await getDb();
-    try { db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); } catch {}
-    db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['logoUrl', logoUrl]);
+    try { await db.exec("CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT)"); } catch {}
+    await db.run("INSERT OR REPLACE INTO settings (key, value) VALUES (?, ?)", ['logoUrl', logoUrl]);
     sendSuccess(res, { logoUrl });
   } catch (err) {
     next(err);

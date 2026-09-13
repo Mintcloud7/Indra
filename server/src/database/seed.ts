@@ -22,7 +22,7 @@ async function seed() {
     'role_permissions', 'user_roles', 'roles', 'permissions', 'users', 'assets'
   ];
   for (const table of tables) {
-    db.run(`DELETE FROM ${table}`);
+    await db.run(`DELETE FROM ${table}`);
   }
 
   // ========== PERMISSIONS ==========
@@ -38,7 +38,7 @@ async function seed() {
       const id = generateId();
       const name = `${mod}.${action}`;
       permIds[name] = id;
-      db.run('INSERT INTO permissions (id, name, module, action, createdAt) VALUES (?, ?, ?, ?, ?)',
+      await db.run('INSERT INTO permissions (id, name, module, action, createdAt) VALUES (?, ?, ?, ?, ?)',
         [id, name, mod, action, now]);
     }
   }
@@ -56,13 +56,13 @@ async function seed() {
   for (const r of roleData) {
     const id = generateId();
     roleIds[r.name] = id;
-    db.run('INSERT INTO roles (id, name, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
+    await db.run('INSERT INTO roles (id, name, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?)',
       [id, r.name, r.desc, now, now]);
   }
 
   // Admin gets all permissions
   for (const permName of Object.keys(permIds)) {
-    db.run('INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)',
+    await db.run('INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)',
       [generateId(), roleIds['ADMIN'], permIds[permName]]);
   }
 
@@ -75,7 +75,7 @@ async function seed() {
   ];
   for (const p of supervisorPerms) {
     if (permIds[p]) {
-      db.run('INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)',
+      await db.run('INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)',
         [generateId(), roleIds['SUPERVISOR'], permIds[p]]);
     }
   }
@@ -86,7 +86,7 @@ async function seed() {
   ];
   for (const p of techPerms) {
     if (permIds[p]) {
-      db.run('INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)',
+      await db.run('INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)',
         [generateId(), roleIds['TECHNICIAN'], permIds[p]]);
     }
   }
@@ -98,7 +98,7 @@ async function seed() {
   ];
   for (const p of managerPerms) {
     if (permIds[p]) {
-      db.run('INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)',
+      await db.run('INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)',
         [generateId(), roleIds['MANAGER'], permIds[p]]);
     }
   }
@@ -110,7 +110,7 @@ async function seed() {
   ];
   for (const p of productionPerms) {
     if (permIds[p]) {
-      db.run('INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)',
+      await db.run('INSERT INTO role_permissions (id, roleId, permissionId) VALUES (?, ?, ?)',
         [generateId(), roleIds['PRODUCTION'], permIds[p]]);
     }
   }
@@ -128,15 +128,15 @@ async function seed() {
   for (const u of userData) {
     const id = generateId();
     userIds[u.email] = id;
-    db.run('INSERT INTO users (id, username, email, password, name, phone, isActive, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)',
+    await db.run('INSERT INTO users (id, username, email, password, name, phone, isActive, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, 1, ?, ?)',
       [id, u.username, u.email, password, u.name, '081234567890', now, now]);
-    db.run('INSERT INTO user_roles (id, userId, roleId) VALUES (?, ?, ?)',
+    await db.run('INSERT INTO user_roles (id, userId, roleId) VALUES (?, ?, ?)',
       [generateId(), id, roleIds[u.role]]);
   }
 
   // ========== WAREHOUSES ==========
   const whId = generateId();
-  db.run('INSERT INTO warehouses (id, name, location, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
+  await db.run('INSERT INTO warehouses (id, name, location, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?)',
     [whId, 'Main Warehouse', 'Building A - Ground Floor', 'Primary spare parts storage', now, now]);
 
   // ========== SPARE PARTS ==========
@@ -153,7 +153,7 @@ async function seed() {
   for (const sp of sparePartsData) {
     const id = generateId();
     sparePartIds.push(id);
-    db.run(`INSERT INTO spare_parts (id, itemCode, itemName, category, specification, unit, warehouseId, currentStock, minimumStock, maximumStock, unitCost, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    await db.run(`INSERT INTO spare_parts (id, itemCode, itemName, category, specification, unit, warehouseId, currentStock, minimumStock, maximumStock, unitCost, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, sp.code, sp.name, sp.cat, sp.spec, sp.unit, whId, sp.stock, sp.min, sp.max, sp.cost, now, now]);
   }
 
@@ -170,7 +170,7 @@ async function seed() {
   for (const a of assetsData) {
     const id = generateId();
     assetIds.push(id);
-    db.run(`INSERT INTO assets (id, assetCode, assetName, assetType, location, serialNumber, manufacturer, model, purchaseDate, warrantyStart, warrantyEnd, status, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)`,
+    await db.run(`INSERT INTO assets (id, assetCode, assetName, assetType, location, serialNumber, manufacturer, model, purchaseDate, warrantyStart, warrantyEnd, status, description, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?, ?)`,
       [id, a.code, a.name, a.type, a.location, a.serial, a.mfr, a.model, a.purchase, a.purchase, `${parseInt(a.purchase) + 2}-12-31`, `${a.name} - ${a.location}`, now, now]);
   }
 
@@ -184,9 +184,9 @@ async function seed() {
   for (const m of meters) {
     const id = generateId();
     meterIds.push(id);
-    db.run('INSERT INTO asset_meters (id, assetId, meterType, unit, createdAt) VALUES (?, ?, ?, ?, ?)',
+    await db.run('INSERT INTO asset_meters (id, assetId, meterType, unit, createdAt) VALUES (?, ?, ?, ?, ?)',
       [id, assetIds[m.assetIdx], m.type, m.unit, now]);
-    db.run('INSERT INTO asset_meter_readings (id, meterId, assetId, value, readingDate, recordedBy) VALUES (?, ?, ?, ?, ?, ?)',
+    await db.run('INSERT INTO asset_meter_readings (id, meterId, assetId, value, readingDate, recordedBy) VALUES (?, ?, ?, ?, ?, ?)',
       [generateId(), id, assetIds[m.assetIdx], Math.floor(Math.random() * 5000) + 1000, now, userIds['technician@example.com']]);
   }
 
@@ -207,7 +207,7 @@ async function seed() {
     const woNumber = `WO-2026-${String(i + 1).padStart(6, '0')}`;
     const createdAt = new Date(Date.now() - (woData.length - i) * 86400000).toISOString();
     
-    db.run(`INSERT INTO work_orders (id, woNumber, title, description, assetId, location, reportedById, supervisorId, assignedToId, priority, status, createdAt, problemDescription, rootCause, resolution, startedAt, closedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+    await db.run(`INSERT INTO work_orders (id, woNumber, title, description, assetId, location, reportedById, supervisorId, assignedToId, priority, status, createdAt, problemDescription, rootCause, resolution, startedAt, closedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, woNumber, w.title, w.desc, assetIds[w.assetIdx], assetsData[w.assetIdx].location,
        userIds['supervisor@example.com'], userIds['supervisor@example.com'],
        w.status !== 'OPEN' ? userIds['technician@example.com'] : null,
@@ -215,19 +215,19 @@ async function seed() {
        w.status === 'IN_PROGRESS' || w.status === 'CLOSED' ? createdAt : null,
        w.status === 'CLOSED' ? now : null]);
 
-    db.run('INSERT INTO work_order_status_history (id, woId, fromStatus, toStatus, changedBy, notes, createdAt) VALUES (?, ?, NULL, ?, ?, ?, ?)',
+    await db.run('INSERT INTO work_order_status_history (id, woId, fromStatus, toStatus, changedBy, notes, createdAt) VALUES (?, ?, NULL, ?, ?, ?, ?)',
       [generateId(), id, 'OPEN', userIds['supervisor@example.com'], 'Work Order created', createdAt]);
 
     if (w.status !== 'OPEN') {
-      db.run('INSERT INTO work_order_status_history (id, woId, fromStatus, toStatus, changedBy, notes, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      await db.run('INSERT INTO work_order_status_history (id, woId, fromStatus, toStatus, changedBy, notes, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [generateId(), id, 'OPEN', 'ASSIGNED', userIds['supervisor@example.com'], 'Assigned to technician', createdAt]);
     }
     if (w.status === 'IN_PROGRESS' || w.status === 'CLOSED') {
-      db.run('INSERT INTO work_order_status_history (id, woId, fromStatus, toStatus, changedBy, notes, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      await db.run('INSERT INTO work_order_status_history (id, woId, fromStatus, toStatus, changedBy, notes, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [generateId(), id, 'ASSIGNED', 'IN_PROGRESS', userIds['technician@example.com'], 'Work started', createdAt]);
     }
     if (w.status === 'CLOSED') {
-      db.run('INSERT INTO work_order_status_history (id, woId, fromStatus, toStatus, changedBy, notes, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      await db.run('INSERT INTO work_order_status_history (id, woId, fromStatus, toStatus, changedBy, notes, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
         [generateId(), id, 'IN_PROGRESS', 'CLOSED', userIds['technician@example.com'], 'Work completed', now]);
     }
   }
@@ -238,14 +238,14 @@ async function seed() {
     'Test equipment operation', 'Document findings', 'Restore operation'
   ];
   for (const cl of checklistItems) {
-    db.run('INSERT INTO work_order_checklists (id, woId, title, required, completed) VALUES (?, ?, ?, 1, ?)',
+    await db.run('INSERT INTO work_order_checklists (id, woId, title, required, completed) VALUES (?, ?, ?, 1, ?)',
       [generateId(), woIds[0], cl, cl !== 'Document findings' ? 1 : 0]);
   }
 
   // Add spare parts to WO
-  db.run('INSERT INTO work_order_spare_parts (id, woId, itemId, plannedQuantity, usedQuantity, unit, unitCost, totalCost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  await db.run('INSERT INTO work_order_spare_parts (id, woId, itemId, plannedQuantity, usedQuantity, unit, unitCost, totalCost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [generateId(), woIds[0], sparePartIds[0], 2, 1, 'PCS', 850000, 850000]);
-  db.run('INSERT INTO work_order_spare_parts (id, woId, itemId, plannedQuantity, usedQuantity, unit, unitCost, totalCost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+  await db.run('INSERT INTO work_order_spare_parts (id, woId, itemId, plannedQuantity, usedQuantity, unit, unitCost, totalCost) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
     [generateId(), woIds[0], sparePartIds[4], 10, 5, 'METER', 3500, 17500]);
 
   // ========== PREVENTIVE MAINTENANCE ==========
@@ -261,34 +261,33 @@ async function seed() {
     const startDate = new Date(Date.now() - 180 * 86400000).toISOString();
     const nextDue = new Date(Date.now() + (i === 1 ? -15 : 30) * 86400000).toISOString();
     
-    db.run(`INSERT INTO preventive_maintenance (id, assetId, title, description, frequency, startDate, nextDueDate, meterType, meterThreshold, assignedToId, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
+    await db.run(`INSERT INTO preventive_maintenance (id, assetId, title, description, frequency, startDate, nextDueDate, meterType, meterThreshold, assignedToId, status, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
       [id, assetIds[p.assetIdx], p.title, p.desc, p.freq, startDate, nextDue, p.meterType, p.meterThreshold,
        userIds['technician@example.com'], now, now]);
 
-    // PM checklists
     const pmChecklistItems = ['Visual inspection', 'Lubrication', 'Filter replacement', 'Performance test'];
     for (const item of pmChecklistItems) {
-      db.run('INSERT INTO pm_checklists (id, pmId, title, required, createdAt) VALUES (?, ?, ?, 1, ?)',
+      await db.run('INSERT INTO pm_checklists (id, pmId, title, required, createdAt) VALUES (?, ?, ?, 1, ?)',
         [generateId(), id, item, now]);
     }
   }
 
   // ========== INVENTORY TRANSACTIONS ==========
-  db.run('INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, referenceType, referenceId, notes, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  await db.run('INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, referenceType, referenceId, notes, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [generateId(), sparePartIds[0], whId, 'IN', 20, 850000, null, null, 'Initial stock', userIds['admin@example.com'], now]);
-  db.run('INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, referenceType, referenceId, notes, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
+  await db.run('INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, referenceType, referenceId, notes, createdBy, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)',
     [generateId(), sparePartIds[0], whId, 'OUT', 8, 850000, 'WORK_ORDER', woIds[0], 'WO-2026-000001 usage', userIds['technician@example.com'], now]);
 
   // ========== NOTIFICATIONS ==========
-  db.run('INSERT INTO notifications (id, userId, type, title, message, referenceType, referenceId, read, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)',
+  await db.run('INSERT INTO notifications (id, userId, type, title, message, referenceType, referenceId, read, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)',
     [generateId(), userIds['technician@example.com'], 'WO_ASSIGNED', 'Work Order Assigned', 'WO-2026-000003 (Compressor Pressure Drop) telah ditugaskan kepada Anda', 'WORK_ORDER', woIds[2], now]);
-  db.run('INSERT INTO notifications (id, userId, type, title, message, referenceType, referenceId, read, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)',
+  await db.run('INSERT INTO notifications (id, userId, type, title, message, referenceType, referenceId, read, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)',
     [generateId(), userIds['admin@example.com'], 'LOW_STOCK', 'Low Stock Alert', 'V-Belt B68 (SP-003) sudah di bawah stok minimum', 'SPARE_PART', sparePartIds[2], now]);
-  db.run('INSERT INTO notifications (id, userId, type, title, message, referenceType, referenceId, read, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)',
+  await db.run('INSERT INTO notifications (id, userId, type, title, message, referenceType, referenceId, read, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?)',
     [generateId(), userIds['supervisor@example.com'], 'WO_CLOSED', 'Work Order Closed', 'WO-2026-000001 (CNC Spindle Vibration) telah selesai', 'WORK_ORDER', woIds[0], now]);
 
   // ========== AUDIT LOGS ==========
-  db.run('INSERT INTO audit_logs (id, userId, action, entity, entityId, newValue, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
+  await db.run('INSERT INTO audit_logs (id, userId, action, entity, entityId, newValue, createdAt) VALUES (?, ?, ?, ?, ?, ?, ?)',
     [generateId(), userIds['admin@example.com'], 'LOGIN', 'user', userIds['admin@example.com'], '{"email":"admin@example.com"}', now]);
 
   saveDb();
@@ -296,10 +295,10 @@ async function seed() {
 
   console.log('\n=== SEED COMPLETE ===');
   console.log('Users:');
-  console.log('  admin@example.com / password123 (ADMIN)');
-  console.log('  supervisor@example.com / password123 (SUPERVISOR)');
-  console.log('  technician@example.com / password123 (TECHNICIAN)');
-  console.log('  manager@example.com / password123 (MANAGER)');
+  console.log('  admin / password123 (ADMIN)');
+  console.log('  supervisor / password123 (SUPERVISOR)');
+  console.log('  technician / password123 (TECHNICIAN)');
+  console.log('  manager / password123 (MANAGER)');
   console.log('\nAssets (Mesin & Alat): 5');
   console.log('Spare Parts: 6');
   console.log('Work Orders: 5');

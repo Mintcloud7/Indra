@@ -162,7 +162,7 @@ export class WoExportService {
     if (filters.assignedToId) { where += ` AND wo.assignedToId = ?`; params.push(filters.assignedToId); }
     if (filters.assetId) { where += ` AND wo.assetId = ?`; params.push(filters.assetId); }
 
-    const summaryResult = db.exec(
+    const summaryResult = await db.exec(
       `SELECT
         COUNT(*) as "totalWorkOrders",
         SUM(CASE WHEN status = 'OPEN' THEN 1 ELSE 0 END) as "openCount",
@@ -178,7 +178,7 @@ export class WoExportService {
       inProgressCount: 0, onHoldCount: 0, closedCount: 0,
     };
 
-    const byPriorityResult = db.exec(
+    const byPriorityResult = await db.exec(
       `SELECT wo.priority, COUNT(*) as count
        FROM work_orders wo ${where}
        GROUP BY wo.priority ORDER BY count DESC`,
@@ -186,7 +186,7 @@ export class WoExportService {
     );
     const byPriority = formatRows(byPriorityResult);
 
-    const byAssetResult = db.exec(
+    const byAssetResult = await db.exec(
       `SELECT a.assetName, a.assetCode, COUNT(*) as count
        FROM work_orders wo
        LEFT JOIN assets a ON wo.assetId = a.id
@@ -197,7 +197,7 @@ export class WoExportService {
     );
     const byAsset = formatRows(byAssetResult);
 
-    const workOrdersResult = db.exec(
+    const workOrdersResult = await db.exec(
       `SELECT wo.id, wo.woNumber, wo.title, wo.priority, wo.status, wo.createdAt, wo.closedAt, wo.dueDate,
         wo.problemDescription, wo.rootCause, wo.workPerformed, wo.resolution,
         a.assetName, a.assetCode,
@@ -781,7 +781,7 @@ export class WoExportService {
   async generateSingleWorkOrderDocx(woId: string): Promise<Buffer> {
     const db = await getDb();
 
-    const woResult = db.exec(
+    const woResult = await db.exec(
       `SELECT wo.*, a.assetName, a.assetCode, a.location as assetLocation,
         u1.name as reportedByName, u2.name as supervisorName, u3.name as assignedToName
        FROM work_orders wo
@@ -794,19 +794,19 @@ export class WoExportService {
     const wo = formatRow(woResult);
     if (!wo) throw new Error('Work Order not found');
 
-    const histResult = db.exec(
+    const histResult = await db.exec(
       `SELECT h.*, u.name as changedByName FROM work_order_status_history h
        LEFT JOIN users u ON h.changedBy = u.id WHERE h.woId = ? ORDER BY h.createdAt ASC`, [woId]
     );
     const statusHistory = formatRows(histResult);
 
-    const clResult = db.exec(
+    const clResult = await db.exec(
       `SELECT c.*, u.name as completedByName FROM work_order_checklists c
        LEFT JOIN users u ON c.completedBy = u.id WHERE c.woId = ? ORDER BY c.id`, [woId]
     );
     const checklists = formatRows(clResult);
 
-    const spResult = db.exec(
+    const spResult = await db.exec(
       `SELECT wsp.*, sp.itemCode, sp.itemName FROM work_order_spare_parts wsp
        LEFT JOIN spare_parts sp ON wsp.itemId = sp.id WHERE wsp.woId = ?`, [woId]
     );

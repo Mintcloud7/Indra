@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '../../database/connection';
+import { getDb } from '../../database/connection';
 import { generateId, generateWoNumber, nowISO, paginate } from '../../shared/utils';
 import { NotFoundError, BadRequestError } from '../../shared/errors';
 
@@ -25,7 +25,7 @@ function formatRows(result: any): any[] {
 export class PmService {
   async getChecklistStats(): Promise<Record<string, { total: number; completed: number }>> {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       `SELECT pmId, COUNT(*) as total, SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed
        FROM pm_checklists GROUP BY pmId`
     );
@@ -49,12 +49,12 @@ export class PmService {
     if (filters.assignedToId) { where += ' AND pm.assignedToId = ?'; params.push(filters.assignedToId); }
     if (filters.search) { where += ` AND (pm.title LIKE ? OR pm.description LIKE ?)`; params.push(`%${filters.search}%`, `%${filters.search}%`); }
 
-    const countResult = db.exec(`SELECT COUNT(*) as count FROM preventive_maintenance pm ${where}`, params);
+    const countResult = await db.exec(`SELECT COUNT(*) as count FROM preventive_maintenance pm ${where}`, params);
     const total = (countResult[0]?.values[0]?.[0] as number) || 0;
 
     const { offset, limit: lim } = paginate(page, limit);
     params.push(lim, offset);
-    const dataResult = db.exec(
+    const dataResult = await db.exec(
       `SELECT pm.*, a.assetName, a.assetCode, u.name as assignedToName
        FROM preventive_maintenance pm
        LEFT JOIN assets a ON pm.assetId = a.id
@@ -68,7 +68,7 @@ export class PmService {
 
   async getById(id: string): Promise<any> {
     const db = await getDb();
-    const pmResult = db.exec(
+    const pmResult = await db.exec(
       `SELECT pm.*, a.assetName, a.assetCode, u.name as assignedToName
        FROM preventive_maintenance pm
        LEFT JOIN assets a ON pm.assetId = a.id
@@ -78,21 +78,21 @@ export class PmService {
     const pm = formatRow(pmResult);
     if (!pm) throw new NotFoundError('Preventive Maintenance not found');
 
-    const clResult = db.exec(
+    const clResult = await db.exec(
       `SELECT c.*, u.name as completedByName FROM pm_checklists c
        LEFT JOIN users u ON c.completedBy = u.id
        WHERE c.pmId = ? ORDER BY c.createdAt`, [id]
     );
     pm.checklists = formatRows(clResult);
 
-    const logsResult = db.exec(
+    const logsResult = await db.exec(
       `SELECT pl.*, w.woNumber FROM pm_logs pl
        LEFT JOIN work_orders w ON pl.woId = w.id
        WHERE pl.pmId = ? ORDER BY pl.completedAt DESC`, [id]
     );
     pm.logs = formatRows(logsResult);
 
-    const woResult = db.exec(
+    const woResult = await db.exec(
       `SELECT pw.*, w.woNumber, w.status as woStatus FROM pm_wos pw
        LEFT JOIN work_orders w ON pw.woId = w.id
        WHERE pw.pmId = ? ORDER BY pw.createdAt DESC`, [id]
@@ -104,7 +104,7 @@ export class PmService {
 
   async getWorkOrders(id: string): Promise<any[]> {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       `SELECT w.* FROM pm_wos pw
        LEFT JOIN work_orders w ON pw.woId = w.id
        WHERE pw.pmId = ? ORDER BY w.createdAt DESC`, [id]
@@ -126,7 +126,7 @@ export class PmService {
       throw new BadRequestError(`Invalid frequency. Must be one of: ${validFrequencies.join(', ')}`);
     }
 
-    const assetResult = db.exec('SELECT id FROM assets WHERE id = ?', [String(data.assetId)]);
+    const assetResult = await db.exec('SELECT id FROM assets WHERE id = ?', [String(data.assetId)]);
     const asset = formatRow(assetResult);
     if (!asset) {
       throw new NotFoundError('Asset not found');
@@ -135,7 +135,7 @@ export class PmService {
     const assignedToId = data.assignedToId || data.assignedTo || null;
 
     if (assignedToId) {
-      const userResult = db.exec('SELECT id FROM users WHERE id = ?', [assignedToId]);
+      const userResult = await db.exec('SELECT id FROM users WHERE id = ?', [assignedToId]);
       const user = formatRow(userResult);
       if (!user) {
         throw new NotFoundError('Assigned user not found');
@@ -144,7 +144,7 @@ export class PmService {
 
     const nextDueDate = data.nextDueDate || this.calculateNextDueDate(data.frequency, data.startDate, data.customIntervalDays);
 
-    db.run(
+    await db.run(
       `INSERT INTO preventive_maintenance (id, assetId, title, description, frequency, customIntervalDays, startDate, nextDueDate, meterType, meterThreshold, assignedToId, status, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
       [
@@ -158,27 +158,27 @@ export class PmService {
 
     if (data.checklists && Array.isArray(data.checklists)) {
       for (const item of data.checklists) {
-        db.run(
+        await db.run(
           `INSERT INTO pm_checklists (id, pmId, title, description, required) VALUES (?, ?, ?, ?, ?)`,
           [generateId(), id, item.title, item.description || null, item.required !== false ? 1 : 0]
         );
       }
     }
 
-    saveDb();
+    
     return this.getById(id);
   }
 
   async update(id: string, data: any): Promise<any> {
     const db = await getDb();
-    const existingResult = db.exec('SELECT * FROM preventive_maintenance WHERE id = ?', [id]);
+    const existingResult = await db.exec('SELECT * FROM preventive_maintenance WHERE id = ?', [id]);
     const existing = formatRow(existingResult);
     if (!existing) {
       throw new NotFoundError('Preventive Maintenance not found');
     }
 
     if (data.assignedToId) {
-      const userResult = db.exec('SELECT id FROM users WHERE id = ?', [data.assignedToId]);
+      const userResult = await db.exec('SELECT id FROM users WHERE id = ?', [data.assignedToId]);
       const user = formatRow(userResult);
       if (!user) {
         throw new NotFoundError('Assigned user not found');
@@ -218,67 +218,67 @@ export class PmService {
     params.push(nowISO());
     params.push(id);
 
-    db.run(`UPDATE preventive_maintenance SET ${fields.join(', ')} WHERE id = ?`, params);
+    await db.run(`UPDATE preventive_maintenance SET ${fields.join(', ')} WHERE id = ?`, params);
 
     // Reset checklist completions when rescheduled to a new date
     if (data.nextDueDate && data.nextDueDate !== existing.nextDueDate) {
-      db.run(
+      await db.run(
         `UPDATE pm_checklists SET completed = 0, completedBy = NULL, completedAt = NULL WHERE pmId = ?`,
         [id]
       );
     }
 
     if (data.checklists && Array.isArray(data.checklists)) {
-      db.run('DELETE FROM pm_checklists WHERE pmId = ?', [id]);
+      await db.run('DELETE FROM pm_checklists WHERE pmId = ?', [id]);
       for (const item of data.checklists) {
-        db.run(
+        await db.run(
           `INSERT INTO pm_checklists (id, pmId, title, description, required) VALUES (?, ?, ?, ?, ?)`,
           [generateId(), id, item.title, item.description || null, item.required !== false ? 1 : 0]
         );
       }
     }
 
-    saveDb();
+    
     return this.getById(id);
   }
 
   async delete(id: string): Promise<void> {
     const db = await getDb();
-    const existingResult = db.exec('SELECT id FROM preventive_maintenance WHERE id = ?', [id]);
+    const existingResult = await db.exec('SELECT id FROM preventive_maintenance WHERE id = ?', [id]);
     const existing = formatRow(existingResult);
     if (!existing) {
       throw new NotFoundError('Preventive Maintenance not found');
     }
 
-    db.run('DELETE FROM pm_checklists WHERE pmId = ?', [id]);
-    db.run('DELETE FROM pm_logs WHERE pmId = ?', [id]);
-    db.run('DELETE FROM pm_wos WHERE pmId = ?', [id]);
-    db.run('DELETE FROM preventive_maintenance WHERE id = ?', [id]);
-    saveDb();
+    await db.run('DELETE FROM pm_checklists WHERE pmId = ?', [id]);
+    await db.run('DELETE FROM pm_logs WHERE pmId = ?', [id]);
+    await db.run('DELETE FROM pm_wos WHERE pmId = ?', [id]);
+    await db.run('DELETE FROM preventive_maintenance WHERE id = ?', [id]);
+    
   }
 
   async toggleChecklist(checklistId: string, userId: string): Promise<any> {
     const db = await getDb();
-    const existing = formatRow(db.exec('SELECT * FROM pm_checklists WHERE id = ?', [checklistId]));
+    const existing = formatRow(await db.exec('SELECT * FROM pm_checklists WHERE id = ?', [checklistId]));
     if (!existing) throw new NotFoundError('Checklist item not found');
 
     const newCompleted = existing.completed ? 0 : 1;
     const now = nowISO();
 
-    db.run(
+    await db.run(
       `UPDATE pm_checklists SET completed = ?, completedBy = ?, completedAt = ? WHERE id = ?`,
       [newCompleted, newCompleted ? userId : null, newCompleted ? now : null, checklistId]
     );
-    saveDb();
+    
 
-    return formatRow(db.exec('SELECT * FROM pm_checklists WHERE id = ?', [checklistId]));
+    return formatRow(await db.exec('SELECT * FROM pm_checklists WHERE id = ?', [checklistId]));
   }
 
   async submitToLogbook(userId: string, workDate: string): Promise<any> {
     const db = await getDb();
     const now = nowISO();
 
-    const pmsResult = db.exec(
+    const pmsResult = await db.exec(
       `SELECT pm.*, a.assetName, a.assetCode, a.location as assetLocation
        FROM preventive_maintenance pm
        LEFT JOIN assets a ON pm.assetId = a.id
@@ -295,14 +295,14 @@ export class PmService {
     if (pms.length === 0) throw new BadRequestError('Tidak ada PM schedule untuk tanggal ini');
 
     const logBookId = generateId();
-    db.run(
+    await db.run(
       `INSERT INTO log_books (id, userId, workDate, location, description, status, createdAt, updatedAt)
        VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
       [logBookId, userId, workDate, 'PM Schedule', `Preventive maintenance activities for ${workDate}`, now, now]
     );
 
     for (const pm of pms) {
-      const checklists = formatRows(db.exec('SELECT * FROM pm_checklists WHERE pmId = ? ORDER BY createdAt', [pm.id]));
+      const checklists = formatRows(await db.exec('SELECT * FROM pm_checklists WHERE pmId = ? ORDER BY createdAt', [pm.id]));
       const completed = checklists.filter((c: any) => c.completed);
       const incomplete = checklists.filter((c: any) => !c.completed);
 
@@ -320,7 +320,7 @@ export class PmService {
       }
 
       const itemId = generateId();
-      db.run(
+      await db.run(
         `INSERT INTO log_book_items (id, logBookId, description, activityType, location, assetId, workOrderNo, durationMinutes, notes, createdAt)
          VALUES (?, ?, ?, 'PREVENTIVE', ?, ?, ?, ?, ?, ?)`,
         [itemId, logBookId, pm.title, pm.assetLocation || pm.assetName || null,
@@ -328,21 +328,21 @@ export class PmService {
       );
     }
 
-    saveDb();
+    
 
-    const result = db.exec(
+    const result = await db.exec(
       `SELECT lb.*, u.name as userName FROM log_books lb LEFT JOIN users u ON lb.userId = u.id WHERE lb.id = ?`,
       [logBookId]
     );
     const log = formatRow(result);
-    log.items = formatRows(db.exec('SELECT * FROM log_book_items WHERE logBookId = ?', [logBookId]));
+    log.items = formatRows(await db.exec('SELECT * FROM log_book_items WHERE logBookId = ?', [logBookId]));
     log.spareParts = [];
     return log;
   }
 
   async generateWorkOrder(pmId: string): Promise<any> {
     const db = await getDb();
-    const pmResult = db.exec(
+    const pmResult = await db.exec(
       `SELECT pm.*, a.assetName, a.assetCode, a.location
        FROM preventive_maintenance pm
        LEFT JOIN assets a ON pm.assetId = a.id
@@ -359,7 +359,7 @@ export class PmService {
 
     const now = nowISO();
     const currentMonth = now.substring(0, 7);
-    const existingWoResult = db.exec(
+    const existingWoResult = await db.exec(
       `SELECT pw.id FROM pm_wos pw
        JOIN work_orders w ON pw.woId = w.id
        WHERE pw.pmId = ? AND w.createdAt >= ? AND w.createdAt < ?`,
@@ -371,69 +371,60 @@ export class PmService {
       throw new BadRequestError('A work order for this PM period has already been generated');
     }
 
-    db.run("BEGIN");
-    try {
-      const woCountResult = db.exec("SELECT COUNT(*) as count FROM work_orders WHERE woNumber LIKE ?", [`WO-${new Date().getFullYear()}%`]);
-      const woNumber = generateWoNumber((woCountResult[0]?.values[0]?.[0] as number) || 0);
+    const woCountResult = await db.exec("SELECT COUNT(*) as count FROM work_orders WHERE woNumber LIKE ?", [`WO-${new Date().getFullYear()}%`]);
+    const woNumber = generateWoNumber((woCountResult[0]?.values[0]?.[0] as number) || 0);
 
-      const woId = generateId();
-      db.run(
-        `INSERT INTO work_orders (id, woNumber, title, description, assetId, location, reportedById, assignedToId, priority, status, dueDate, problemDescription, createdAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'MEDIUM', 'OPEN', ?, ?, ?)`,
-        [
-          woId, woNumber,
-          `PM: ${pm.title}`,
-          `Preventive Maintenance scheduled for ${pm.assetName || pm.assetCode}`,
-          pm.assetId, pm.location || null,
-          pm.assignedToId || 'system', pm.assignedToId || null,
-          pm.nextDueDate,
-          'Auto-generated from preventive maintenance schedule',
-          now
-        ]
+    const woId = generateId();
+    await db.run(
+      `INSERT INTO work_orders (id, woNumber, title, description, assetId, location, reportedById, assignedToId, priority, status, dueDate, problemDescription, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, 'MEDIUM', 'OPEN', ?, ?, ?)`,
+      [
+        woId, woNumber,
+        `PM: ${pm.title}`,
+        `Preventive Maintenance scheduled for ${pm.assetName || pm.assetCode}`,
+        pm.assetId, pm.location || null,
+        pm.assignedToId || 'system', pm.assignedToId || null,
+        pm.nextDueDate,
+        'Auto-generated from preventive maintenance schedule',
+        now
+      ]
+    );
+
+    await db.run(
+      `INSERT INTO pm_wos (id, pmId, woId, createdAt) VALUES (?, ?, ?, ?)`,
+      [generateId(), pmId, woId, now]
+    );
+
+    const checklistsResult = await db.exec('SELECT * FROM pm_checklists WHERE pmId = ?', [pmId]);
+    const checklists = formatRows(checklistsResult);
+    for (const checklist of checklists) {
+      await db.run(
+        `INSERT INTO work_order_checklists (id, woId, title, description, required, completed)
+         VALUES (?, ?, ?, ?, ?, 0)`,
+        [generateId(), woId, checklist.title, checklist.description || null, checklist.required]
       );
-
-      db.run(
-        `INSERT INTO pm_wos (id, pmId, woId, createdAt) VALUES (?, ?, ?, ?)`,
-        [generateId(), pmId, woId, now]
-      );
-
-      const checklistsResult = db.exec('SELECT * FROM pm_checklists WHERE pmId = ?', [pmId]);
-      const checklists = formatRows(checklistsResult);
-      for (const checklist of checklists) {
-        db.run(
-          `INSERT INTO work_order_checklists (id, woId, title, description, required, completed)
-           VALUES (?, ?, ?, ?, ?, 0)`,
-          [generateId(), woId, checklist.title, checklist.description || null, checklist.required]
-        );
-      }
-
-      db.run(
-        `INSERT INTO pm_logs (id, pmId, woId, completedAt, notes) VALUES (?, ?, ?, ?, ?)`,
-        [generateId(), pmId, woId, now, 'Work order generated']
-      );
-
-      const newNextDue = this.calculateNextDueDate(pm.frequency, pm.startDate, pm.customIntervalDays);
-      db.run('UPDATE preventive_maintenance SET nextDueDate = ?, updatedAt = ? WHERE id = ?', [newNextDue, now, pmId]);
-
-      db.run("COMMIT");
-      saveDb();
-
-      const woResult = db.exec(
-        `SELECT wo.*, a.assetName, a.assetCode FROM work_orders wo
-         LEFT JOIN assets a ON wo.assetId = a.id WHERE wo.id = ?`, [woId]
-      );
-      return formatRow(woResult);
-    } catch (e) {
-      db.run("ROLLBACK");
-      throw e;
     }
+
+    await db.run(
+      `INSERT INTO pm_logs (id, pmId, woId, completedAt, notes) VALUES (?, ?, ?, ?, ?)`,
+      [generateId(), pmId, woId, now, 'Work order generated']
+    );
+
+    const newNextDue = this.calculateNextDueDate(pm.frequency, pm.startDate, pm.customIntervalDays);
+    await db.run('UPDATE preventive_maintenance SET nextDueDate = ?, updatedAt = ? WHERE id = ?', [newNextDue, now, pmId]);
+
+    const woResult = await db.exec(
+      `SELECT wo.*, a.assetName, a.assetCode FROM work_orders wo
+       LEFT JOIN assets a ON wo.assetId = a.id WHERE wo.id = ?`, [woId]
+    );
+    return formatRow(woResult);
   }
 
   async checkDuePMs(): Promise<any[]> {
     const now = nowISO();
     const db = await getDb();
 
-    const duePMsResult = db.exec(
+    const duePMsResult = await db.exec(
       `SELECT pm.*, a.assetName, a.assetCode
        FROM preventive_maintenance pm
        LEFT JOIN assets a ON pm.assetId = a.id
@@ -450,7 +441,7 @@ export class PmService {
 
     for (const pm of duePMs) {
       const currentMonth = now.substring(0, 7);
-      const existingWoResult = db.exec(
+      const existingWoResult = await db.exec(
         `SELECT pw.id FROM pm_wos pw
          JOIN work_orders w ON pw.woId = w.id
          WHERE pw.pmId = ? AND w.createdAt >= ? AND w.createdAt < ?`,

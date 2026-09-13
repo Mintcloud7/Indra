@@ -34,7 +34,7 @@ class AdapterRegistry {
   async getConfig(provider: string): Promise<ProviderConfig> {
     const db = await getDb();
     const prefix = `${provider}_`;
-    const result = db.exec(
+    const result = await db.exec(
       "SELECT key, value FROM integration_configs WHERE key LIKE ?",
       [`${prefix}%`]
     );

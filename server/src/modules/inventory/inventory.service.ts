@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '../../database/connection';
+import { getDb } from '../../database/connection';
 import { generateId, nowISO, paginate } from '../../shared/utils';
 import { NotFoundError, BadRequestError, ConflictError } from '../../shared/errors';
 
@@ -51,14 +51,14 @@ export async function listSpareParts(
     params.push(warehouseId);
   }
 
-  const countResult = db.exec(
+  const countResult = await db.exec(
     `SELECT COUNT(*) as total FROM spare_parts sp ${whereClause}`,
     params
   );
   const total = (countResult[0]?.values[0]?.[0] as number) || 0;
 
   params.push(lim, offset);
-  const dataResult = db.exec(
+  const dataResult = await db.exec(
     `SELECT sp.*, w.name as warehouseName
      FROM spare_parts sp
      LEFT JOIN warehouses w ON sp.warehouseId = w.id
@@ -73,7 +73,7 @@ export async function listSpareParts(
 
 export async function getSparePartById(id: string) {
   const db = await getDb();
-  const result = db.exec(
+  const result = await db.exec(
     `SELECT sp.*, w.name as warehouseName
      FROM spare_parts sp
      LEFT JOIN warehouses w ON sp.warehouseId = w.id
@@ -101,14 +101,14 @@ export async function createSparePart(data: {
   unitCost?: number;
 }) {
   const db = await getDb();
-  const existingResult = db.exec('SELECT id FROM spare_parts WHERE itemCode = ?', [data.itemCode]);
+  const existingResult = await db.exec('SELECT id FROM spare_parts WHERE itemCode = ?', [data.itemCode]);
   const existing = formatRow(existingResult);
   if (existing) {
     throw new ConflictError('Item code already exists');
   }
 
   if (data.warehouseId) {
-    const whResult = db.exec('SELECT id FROM warehouses WHERE id = ?', [data.warehouseId]);
+    const whResult = await db.exec('SELECT id FROM warehouses WHERE id = ?', [data.warehouseId]);
     const wh = formatRow(whResult);
     if (!wh) {
       throw new NotFoundError('Warehouse not found');
@@ -118,7 +118,7 @@ export async function createSparePart(data: {
   const id = generateId();
   const now = nowISO();
 
-  db.run(
+  await db.run(
     `INSERT INTO spare_parts (id, itemCode, itemName, category, specification, unit, warehouseId, stockLocation, currentStock, minimumStock, maximumStock, unitCost, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
@@ -132,7 +132,6 @@ export async function createSparePart(data: {
     ]
   );
 
-  saveDb();
   return getSparePartById(id);
 }
 
@@ -153,14 +152,14 @@ export async function updateSparePart(
   }>
 ) {
   const db = await getDb();
-  const existingResult = db.exec('SELECT * FROM spare_parts WHERE id = ?', [id]);
+  const existingResult = await db.exec('SELECT * FROM spare_parts WHERE id = ?', [id]);
   const existing = formatRow(existingResult);
   if (!existing) {
     throw new NotFoundError('Spare part not found');
   }
 
   if (data.itemCode) {
-    const codeCheckResult = db.exec(
+    const codeCheckResult = await db.exec(
       'SELECT id FROM spare_parts WHERE itemCode = ? AND id != ?',
       [data.itemCode, id]
     );
@@ -171,7 +170,7 @@ export async function updateSparePart(
   }
 
   if (data.warehouseId) {
-    const whResult = db.exec('SELECT id FROM warehouses WHERE id = ?', [data.warehouseId]);
+    const whResult = await db.exec('SELECT id FROM warehouses WHERE id = ?', [data.warehouseId]);
     const wh = formatRow(whResult);
     if (!wh) {
       throw new NotFoundError('Warehouse not found');
@@ -202,9 +201,8 @@ export async function updateSparePart(
   params.push(nowISO());
   params.push(id);
 
-  db.run(`UPDATE spare_parts SET ${fields.join(', ')} WHERE id = ?`, params);
+  await db.run(`UPDATE spare_parts SET ${fields.join(', ')} WHERE id = ?`, params);
 
-  saveDb();
   return getSparePartById(id);
 }
 
@@ -212,7 +210,7 @@ export async function updateSparePart(
 
 export async function listWarehouses() {
   const db = await getDb();
-  const result = db.exec('SELECT * FROM warehouses ORDER BY name ASC');
+  const result = await db.exec('SELECT * FROM warehouses ORDER BY name ASC');
   return formatRows(result);
 }
 
@@ -222,7 +220,7 @@ export async function createWarehouse(data: {
   description?: string;
 }) {
   const db = await getDb();
-  const existingResult = db.exec('SELECT id FROM warehouses WHERE name = ?', [data.name]);
+  const existingResult = await db.exec('SELECT id FROM warehouses WHERE name = ?', [data.name]);
   const existing = formatRow(existingResult);
   if (existing) {
     throw new ConflictError('Warehouse name already exists');
@@ -231,14 +229,13 @@ export async function createWarehouse(data: {
   const id = generateId();
   const now = nowISO();
 
-  db.run(
+  await db.run(
     `INSERT INTO warehouses (id, name, location, description, createdAt, updatedAt)
      VALUES (?, ?, ?, ?, ?, ?)`,
     [id, data.name, data.location || null, data.description || null, now, now]
   );
 
-  saveDb();
-  const result = db.exec('SELECT * FROM warehouses WHERE id = ?', [id]);
+  const result = await db.exec('SELECT * FROM warehouses WHERE id = ?', [id]);
   return formatRow(result);
 }
 
@@ -248,14 +245,14 @@ export async function updateWarehouse(id: string, data: {
   description?: string;
 }) {
   const db = await getDb();
-  const existingResult = db.exec('SELECT * FROM warehouses WHERE id = ?', [id]);
+  const existingResult = await db.exec('SELECT * FROM warehouses WHERE id = ?', [id]);
   const existing = formatRow(existingResult);
   if (!existing) {
     throw new NotFoundError('Warehouse not found');
   }
 
   if (data.name && data.name !== existing.name) {
-    const nameCheck = db.exec('SELECT id FROM warehouses WHERE name = ? AND id != ?', [data.name, id]);
+    const nameCheck = await db.exec('SELECT id FROM warehouses WHERE name = ? AND id != ?', [data.name, id]);
     const nameExists = formatRow(nameCheck);
     if (nameExists) throw new ConflictError('Warehouse name already exists');
   }
@@ -272,30 +269,28 @@ export async function updateWarehouse(id: string, data: {
     fields.push('updatedAt = ?');
     params.push(now);
     params.push(id);
-    db.run(`UPDATE warehouses SET ${fields.join(', ')} WHERE id = ?`, params);
+    await db.run(`UPDATE warehouses SET ${fields.join(', ')} WHERE id = ?`, params);
   }
 
-  saveDb();
-  const result = db.exec('SELECT * FROM warehouses WHERE id = ?', [id]);
+  const result = await db.exec('SELECT * FROM warehouses WHERE id = ?', [id]);
   return formatRow(result);
 }
 
 export async function deleteWarehouse(id: string) {
   const db = await getDb();
-  const existingResult = db.exec('SELECT * FROM warehouses WHERE id = ?', [id]);
+  const existingResult = await db.exec('SELECT * FROM warehouses WHERE id = ?', [id]);
   const existing = formatRow(existingResult);
   if (!existing) {
     throw new NotFoundError('Warehouse not found');
   }
 
-  const sparePartsResult = db.exec('SELECT COUNT(*) as c FROM spare_parts WHERE warehouseId = ?', [id]);
+  const sparePartsResult = await db.exec('SELECT COUNT(*) as c FROM spare_parts WHERE warehouseId = ?', [id]);
   const sparePartsCount = (sparePartsResult[0]?.values[0]?.[0] as number) || 0;
   if (sparePartsCount > 0) {
     throw new ConflictError('Cannot delete warehouse with existing spare parts');
   }
 
-  db.run('DELETE FROM warehouses WHERE id = ?', [id]);
-  saveDb();
+  await db.run('DELETE FROM warehouses WHERE id = ?', [id]);
 }
 
 // ─── Transactions ────────────────────────────────────────────────────────────
@@ -336,14 +331,14 @@ export async function listTransactions(
     params.push(endDate);
   }
 
-  const countResult = db.exec(
+  const countResult = await db.exec(
     `SELECT COUNT(*) as total FROM inventory_transactions it ${whereClause}`,
     params
   );
   const total = (countResult[0]?.values[0]?.[0] as number) || 0;
 
   params.push(lim, offset);
-  const dataResult = db.exec(
+  const dataResult = await db.exec(
     `SELECT it.*, sp.itemCode, sp.itemName, w.name as warehouseName, u.name as createdByName
      FROM inventory_transactions it
      LEFT JOIN spare_parts sp ON it.itemId = sp.id
@@ -360,11 +355,10 @@ export async function listTransactions(
 
 export async function updateStock(itemId: string, delta: number) {
   const db = await getDb();
-  db.run(
+  await db.run(
     `UPDATE spare_parts SET currentStock = currentStock + ?, updatedAt = ? WHERE id = ?`,
     [delta, nowISO(), itemId]
   );
-  saveDb();
 }
 
 export async function stockIn(
@@ -376,43 +370,34 @@ export async function stockIn(
   createdBy: string
 ) {
   const db = await getDb();
-  const itemResult = db.exec('SELECT id FROM spare_parts WHERE id = ?', [itemId]);
+  const itemResult = await db.exec('SELECT id FROM spare_parts WHERE id = ?', [itemId]);
   const item = formatRow(itemResult);
   if (!item) {
     throw new NotFoundError('Spare part not found');
   }
 
-  const whResult = db.exec('SELECT id FROM warehouses WHERE id = ?', [warehouseId]);
+  const whResult = await db.exec('SELECT id FROM warehouses WHERE id = ?', [warehouseId]);
   const wh = formatRow(whResult);
   if (!wh) {
     throw new NotFoundError('Warehouse not found');
   }
 
-  db.run("BEGIN");
-  try {
     const id = generateId();
     const now = nowISO();
 
-    db.run(
+    await db.run(
       `INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, notes, createdBy, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, itemId, warehouseId, 'IN', quantity, unitCost, notes || null, createdBy, now]
     );
 
-    db.run(
+    await db.run(
       `UPDATE spare_parts SET currentStock = currentStock + ?, unitCost = ?, updatedAt = ? WHERE id = ?`,
       [quantity, unitCost, now, itemId]
     );
 
-    db.run("COMMIT");
-    saveDb();
-
-    const result = db.exec('SELECT * FROM inventory_transactions WHERE id = ?', [id]);
+    const result = await db.exec('SELECT * FROM inventory_transactions WHERE id = ?', [id]);
     return formatRow(result);
-  } catch (e) {
-    db.run("ROLLBACK");
-    throw e;
-  }
 }
 
 export async function stockOut(
@@ -426,7 +411,7 @@ export async function stockOut(
   createdBy: string
 ) {
   const db = await getDb();
-  const itemResult = db.exec('SELECT id, currentStock FROM spare_parts WHERE id = ?', [itemId]);
+  const itemResult = await db.exec('SELECT id, currentStock FROM spare_parts WHERE id = ?', [itemId]);
   const item = formatRow(itemResult);
   if (!item) {
     throw new NotFoundError('Spare part not found');
@@ -436,37 +421,28 @@ export async function stockOut(
     throw new BadRequestError(`Insufficient stock. Available: ${item.currentStock}, requested: ${quantity}`);
   }
 
-  const whResult = db.exec('SELECT id FROM warehouses WHERE id = ?', [warehouseId]);
+  const whResult = await db.exec('SELECT id FROM warehouses WHERE id = ?', [warehouseId]);
   const wh = formatRow(whResult);
   if (!wh) {
     throw new NotFoundError('Warehouse not found');
   }
 
-  db.run("BEGIN");
-  try {
     const id = generateId();
     const now = nowISO();
 
-    db.run(
+    await db.run(
       `INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, referenceType, referenceId, notes, createdBy, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, itemId, warehouseId, 'OUT', quantity, unitCost, referenceType || null, referenceId || null, notes || null, createdBy, now]
     );
 
-    db.run(
+    await db.run(
       `UPDATE spare_parts SET currentStock = currentStock - ?, updatedAt = ? WHERE id = ?`,
       [quantity, now, itemId]
     );
 
-    db.run("COMMIT");
-    saveDb();
-
-    const result = db.exec('SELECT * FROM inventory_transactions WHERE id = ?', [id]);
+    const result = await db.exec('SELECT * FROM inventory_transactions WHERE id = ?', [id]);
     return formatRow(result);
-  } catch (e) {
-    db.run("ROLLBACK");
-    throw e;
-  }
 }
 
 export async function adjustment(
@@ -478,43 +454,34 @@ export async function adjustment(
   createdBy: string
 ) {
   const db = await getDb();
-  const itemResult = db.exec('SELECT id FROM spare_parts WHERE id = ?', [itemId]);
+  const itemResult = await db.exec('SELECT id FROM spare_parts WHERE id = ?', [itemId]);
   const item = formatRow(itemResult);
   if (!item) {
     throw new NotFoundError('Spare part not found');
   }
 
-  const whResult = db.exec('SELECT id FROM warehouses WHERE id = ?', [warehouseId]);
+  const whResult = await db.exec('SELECT id FROM warehouses WHERE id = ?', [warehouseId]);
   const wh = formatRow(whResult);
   if (!wh) {
     throw new NotFoundError('Warehouse not found');
   }
 
-  db.run("BEGIN");
-  try {
     const id = generateId();
     const now = nowISO();
 
-    db.run(
+    await db.run(
       `INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, notes, createdBy, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, itemId, warehouseId, 'ADJUSTMENT', quantity, unitCost, notes || null, createdBy, now]
     );
 
-    db.run(
+    await db.run(
       `UPDATE spare_parts SET currentStock = currentStock + ?, unitCost = ?, updatedAt = ? WHERE id = ?`,
       [quantity, unitCost, now, itemId]
     );
 
-    db.run("COMMIT");
-    saveDb();
-
-    const result = db.exec('SELECT * FROM inventory_transactions WHERE id = ?', [id]);
+    const result = await db.exec('SELECT * FROM inventory_transactions WHERE id = ?', [id]);
     return formatRow(result);
-  } catch (e) {
-    db.run("ROLLBACK");
-    throw e;
-  }
 }
 
 export async function returnStock(
@@ -526,48 +493,39 @@ export async function returnStock(
   createdBy: string
 ) {
   const db = await getDb();
-  const itemResult = db.exec('SELECT id FROM spare_parts WHERE id = ?', [itemId]);
+  const itemResult = await db.exec('SELECT id FROM spare_parts WHERE id = ?', [itemId]);
   const item = formatRow(itemResult);
   if (!item) {
     throw new NotFoundError('Spare part not found');
   }
 
-  const whResult = db.exec('SELECT id FROM warehouses WHERE id = ?', [warehouseId]);
+  const whResult = await db.exec('SELECT id FROM warehouses WHERE id = ?', [warehouseId]);
   const wh = formatRow(whResult);
   if (!wh) {
     throw new NotFoundError('Warehouse not found');
   }
 
-  db.run("BEGIN");
-  try {
     const id = generateId();
     const now = nowISO();
 
-    db.run(
+    await db.run(
       `INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, notes, createdBy, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [id, itemId, warehouseId, 'RETURN', quantity, unitCost, notes || null, createdBy, now]
     );
 
-    db.run(
+    await db.run(
       `UPDATE spare_parts SET currentStock = currentStock + ?, unitCost = ?, updatedAt = ? WHERE id = ?`,
       [quantity, unitCost, now, itemId]
     );
 
-    db.run("COMMIT");
-    saveDb();
-
-    const result = db.exec('SELECT * FROM inventory_transactions WHERE id = ?', [id]);
+    const result = await db.exec('SELECT * FROM inventory_transactions WHERE id = ?', [id]);
     return formatRow(result);
-  } catch (e) {
-    db.run("ROLLBACK");
-    throw e;
-  }
 }
 
 export async function getLowStockItems() {
   const db = await getDb();
-  const result = db.exec(
+  const result = await db.exec(
     `SELECT sp.*, w.name as warehouseName
      FROM spare_parts sp
      LEFT JOIN warehouses w ON sp.warehouseId = w.id

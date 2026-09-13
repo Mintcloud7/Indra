@@ -1,6 +1,6 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { getDb, saveDb } from '../../database/connection';
+import { getDb } from '../../database/connection';
 import { UnauthorizedError, NotFoundError } from '../../shared/errors';
 import { nowISO } from '../../shared/utils';
 
@@ -30,7 +30,7 @@ function formatRows(result: any): any[] {
 export class AuthService {
   async login(username: string, password: string): Promise<{ token: string; user: any }> {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       "SELECT id, username, email, name, password, isActive FROM users WHERE username = ?", [username]
     );
 
@@ -48,14 +48,14 @@ export class AuthService {
       throw new UnauthorizedError('Username atau password salah');
     }
 
-    const rolesResult = db.exec(
+    const rolesResult = await db.exec(
       `SELECT r.id, r.name FROM roles r
        JOIN user_roles ur ON r.id = ur.roleId
        WHERE ur.userId = ?`, [user.id]
     );
     const roles = formatRows(rolesResult);
 
-    const permissionsResult = db.exec(
+    const permissionsResult = await db.exec(
       `SELECT DISTINCT p.name FROM permissions p
        JOIN role_permissions rp ON p.id = rp.permissionId
        JOIN user_roles ur ON rp.roleId = ur.roleId
@@ -81,7 +81,7 @@ export class AuthService {
 
   async getMe(userId: string): Promise<any> {
     const db = await getDb();
-    const result = db.exec(
+    const result = await db.exec(
       "SELECT id, email, name, phone, avatar, isActive FROM users WHERE id = ?", [userId]
     );
     const user = formatRow(result);
@@ -89,12 +89,12 @@ export class AuthService {
       throw new NotFoundError('User not found');
     }
 
-    const rolesResult = db.exec(
+    const rolesResult = await db.exec(
       `SELECT r.id, r.name FROM roles r JOIN user_roles ur ON r.id = ur.roleId WHERE ur.userId = ?`, [userId]
     );
     const roles = formatRows(rolesResult);
 
-    const permissionsResult = db.exec(
+    const permissionsResult = await db.exec(
       `SELECT DISTINCT p.name FROM permissions p JOIN role_permissions rp ON p.id = rp.permissionId JOIN user_roles ur ON rp.roleId = ur.roleId WHERE ur.userId = ?`, [userId]
     );
     const permissions = formatRows(permissionsResult);
@@ -107,7 +107,7 @@ export class AuthService {
 
   async changePassword(userId: string, currentPassword: string, newPassword: string): Promise<void> {
     const db = await getDb();
-    const result = db.exec("SELECT password FROM users WHERE id = ?", [userId]);
+    const result = await db.exec("SELECT password FROM users WHERE id = ?", [userId]);
     const user = formatRow(result);
     if (!user) throw new NotFoundError('User not found');
 
@@ -115,8 +115,7 @@ export class AuthService {
     if (!valid) throw new UnauthorizedError('Current password is incorrect');
 
     const hashed = await bcrypt.hash(newPassword, 12);
-    db.run("UPDATE users SET password = ?, updatedAt = ? WHERE id = ?", [hashed, nowISO(), userId]);
-    saveDb();
+    await db.run("UPDATE users SET password = ?, updatedAt = ? WHERE id = ?", [hashed, nowISO(), userId]);
   }
 }
 

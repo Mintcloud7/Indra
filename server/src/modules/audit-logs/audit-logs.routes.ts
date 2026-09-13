@@ -63,14 +63,14 @@ router.get('/', requirePermission('audit_logs', 'read'), async (req: AuthRequest
     }
 
     const countParams = [...params];
-    const countResult = db.exec(
+    const countResult = await db.exec(
       `SELECT COUNT(*) as total FROM audit_logs al WHERE 1=1 ${whereClause}`,
       countParams
     );
     const total = (countResult[0]?.values[0]?.[0] as number) || 0;
 
     params.push(lim, offset);
-    const dataResult = db.exec(
+    const dataResult = await db.exec(
       `SELECT al.*, u.name as userName, u.email as userEmail
        FROM audit_logs al
        LEFT JOIN users u ON al.userId = u.id

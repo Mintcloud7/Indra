@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '../../database/connection';
+import { getDb } from '../../database/connection';
 import { generateId, nowISO, paginate } from '../../shared/utils';
 import { NotFoundError, BadRequestError } from '../../shared/errors';
 
@@ -44,10 +44,10 @@ export async function listLogBooks(
     params.push(`%${search}%`, `%${search}%`, `%${search}%`);
   }
 
-  const countResult = db.exec(`SELECT COUNT(*) as c FROM log_books lb ${whereClause}`, params);
+  const countResult = await db.exec(`SELECT COUNT(*) as c FROM log_books lb ${whereClause}`, params);
   const total = (countResult[0]?.values[0]?.[0] as number) || 0;
 
-  const dataResult = db.exec(
+  const dataResult = await db.exec(
     `SELECT lb.*, u.name as userName
      FROM log_books lb
      LEFT JOIN users u ON lb.userId = u.id
@@ -60,11 +60,11 @@ export async function listLogBooks(
   const logs = formatRows(dataResult);
 
   for (const log of logs) {
-    log.items = formatRows(db.exec(
+    log.items = formatRows(await db.exec(
       'SELECT * FROM log_book_items WHERE logBookId = ? ORDER BY createdAt ASC',
       [log.id]
     ));
-    log.spareParts = formatRows(db.exec(
+    log.spareParts = formatRows(await db.exec(
       `SELECT lbs.*, sp.itemCode, sp.itemName, sp.unit
        FROM log_book_spare_parts lbs
        LEFT JOIN spare_parts sp ON lbs.sparePartId = sp.id
@@ -78,7 +78,7 @@ export async function listLogBooks(
 
 export async function getLogBookById(id: string) {
   const db = await getDb();
-  const result = db.exec(
+  const result = await db.exec(
     `SELECT lb.*, u.name as userName
      FROM log_books lb
      LEFT JOIN users u ON lb.userId = u.id
@@ -88,11 +88,11 @@ export async function getLogBookById(id: string) {
   const log = formatRow(result);
   if (!log) throw new NotFoundError('Log book not found');
 
-  log.items = formatRows(db.exec(
+  log.items = formatRows(await db.exec(
     'SELECT * FROM log_book_items WHERE logBookId = ? ORDER BY createdAt ASC',
     [id]
   ));
-  log.spareParts = formatRows(db.exec(
+  log.spareParts = formatRows(await db.exec(
     `SELECT lbs.*, sp.itemCode, sp.itemName, sp.unit
      FROM log_book_spare_parts lbs
      LEFT JOIN spare_parts sp ON lbs.sparePartId = sp.id
@@ -123,67 +123,58 @@ export async function createLogBook(data: {
   const id = generateId();
   const now = nowISO();
 
-  db.run('BEGIN');
-  try {
-    db.run(
-      `INSERT INTO log_books (id, userId, workDate, location, description, status, createdAt, updatedAt)
-       VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
-      [id, data.userId, data.workDate, data.location || null,
-       data.description || null, now, now]
+  await db.run(
+    `INSERT INTO log_books (id, userId, workDate, location, description, status, createdAt, updatedAt)
+     VALUES (?, ?, ?, ?, ?, 'ACTIVE', ?, ?)`,
+    [id, data.userId, data.workDate, data.location || null,
+     data.description || null, now, now]
+  );
+
+  for (const item of data.items) {
+    const itemId = generateId();
+    await db.run(
+      `INSERT INTO log_book_items (id, logBookId, description, activityType, location, assetId, workOrderNo, durationMinutes, notes, createdAt)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [itemId, id, item.description, item.activityType || 'CORRECTIVE',
+       item.location || null, item.assetId || null, item.workOrderNo || null,
+       item.durationMinutes || null, item.notes || null, now]
     );
 
-    for (const item of data.items) {
-      const itemId = generateId();
-      db.run(
-        `INSERT INTO log_book_items (id, logBookId, description, activityType, location, assetId, workOrderNo, durationMinutes, notes, createdAt)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-        [itemId, id, item.description, item.activityType || 'CORRECTIVE',
-         item.location || null, item.assetId || null, item.workOrderNo || null,
-         item.durationMinutes || null, item.notes || null, now]
-      );
+    if (item.spareParts && item.spareParts.length > 0) {
+      for (const sp of item.spareParts) {
+        if (!sp.sparePartId || !sp.quantity || sp.quantity <= 0) continue;
 
-      if (item.spareParts && item.spareParts.length > 0) {
-        for (const sp of item.spareParts) {
-          if (!sp.sparePartId || !sp.quantity || sp.quantity <= 0) continue;
-
-          const itemResult = db.exec('SELECT id, currentStock, warehouseId FROM spare_parts WHERE id = ?', [sp.sparePartId]);
-          const spData = formatRow(itemResult);
-          if (!spData) throw new NotFoundError(`Spare part ${sp.sparePartId} not found`);
-          if ((spData.currentStock as number) < sp.quantity) {
-            throw new BadRequestError(`Insufficient stock for ${sp.sparePartId}. Available: ${spData.currentStock}, requested: ${sp.quantity}`);
-          }
-
-          const spId = generateId();
-          db.run(
-            `INSERT INTO log_book_spare_parts (id, logBookId, logBookItemId, sparePartId, quantity, unitCost, notes, createdAt)
-             VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-            [spId, id, itemId, sp.sparePartId, sp.quantity, sp.unitCost || 0, sp.notes || null, now]
-          );
-
-          db.run(
-            `UPDATE spare_parts SET currentStock = currentStock - ?, updatedAt = ? WHERE id = ?`,
-            [sp.quantity, now, sp.sparePartId]
-          );
-
-          const txnId = generateId();
-          db.run(
-            `INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, referenceType, referenceId, notes, createdBy, createdAt)
-             VALUES (?, ?, ?, 'OUT', ?, ?, 'LOG_BOOK', ?, ?, ?, ?)`,
-            [txnId, sp.sparePartId, spData.warehouseId, sp.quantity, sp.unitCost || 0, id,
-             sp.notes || `Log book: ${item.description}`, data.userId, now]
-          );
+        const itemResult = await db.exec('SELECT id, currentStock, warehouseId FROM spare_parts WHERE id = ?', [sp.sparePartId]);
+        const spData = formatRow(itemResult);
+        if (!spData) throw new NotFoundError(`Spare part ${sp.sparePartId} not found`);
+        if ((spData.currentStock as number) < sp.quantity) {
+          throw new BadRequestError(`Insufficient stock for ${sp.sparePartId}. Available: ${spData.currentStock}, requested: ${sp.quantity}`);
         }
+
+        const spId = generateId();
+        await db.run(
+          `INSERT INTO log_book_spare_parts (id, logBookId, logBookItemId, sparePartId, quantity, unitCost, notes, createdAt)
+           VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+          [spId, id, itemId, sp.sparePartId, sp.quantity, sp.unitCost || 0, sp.notes || null, now]
+        );
+
+        await db.run(
+          `UPDATE spare_parts SET currentStock = currentStock - ?, updatedAt = ? WHERE id = ?`,
+          [sp.quantity, now, sp.sparePartId]
+        );
+
+        const txnId = generateId();
+        await db.run(
+          `INSERT INTO inventory_transactions (id, itemId, warehouseId, transactionType, quantity, unitCost, referenceType, referenceId, notes, createdBy, createdAt)
+           VALUES (?, ?, ?, 'OUT', ?, ?, 'LOG_BOOK', ?, ?, ?, ?)`,
+          [txnId, sp.sparePartId, spData.warehouseId, sp.quantity, sp.unitCost || 0, id,
+           sp.notes || `Log book: ${item.description}`, data.userId, now]
+        );
       }
     }
-
-    db.run('COMMIT');
-    saveDb();
-
-    return await getLogBookById(id);
-  } catch (e) {
-    db.run('ROLLBACK');
-    throw e;
   }
+
+  return await getLogBookById(id);
 }
 
 export async function updateLogBook(id: string, data: {
@@ -193,7 +184,7 @@ export async function updateLogBook(id: string, data: {
   items?: any[];
 }) {
   const db = await getDb();
-  const existing = formatRow(db.exec('SELECT * FROM log_books WHERE id = ?', [id]));
+  const existing = formatRow(await db.exec('SELECT * FROM log_books WHERE id = ?', [id]));
   if (!existing) throw new NotFoundError('Log book not found');
 
   const now = nowISO();
@@ -208,23 +199,23 @@ export async function updateLogBook(id: string, data: {
     fields.push('updatedAt = ?');
     params.push(now);
     params.push(id);
-    db.run(`UPDATE log_books SET ${fields.join(', ')} WHERE id = ?`, params);
+    await db.run(`UPDATE log_books SET ${fields.join(', ')} WHERE id = ?`, params);
   }
 
   if (data.items && Array.isArray(data.items)) {
-    const oldSpares = formatRows(db.exec('SELECT * FROM log_book_spare_parts WHERE logBookId = ?', [id]));
+    const oldSpares = formatRows(await db.exec('SELECT * FROM log_book_spare_parts WHERE logBookId = ?', [id]));
     for (const sp of oldSpares) {
-      db.run(
+      await db.run(
         `UPDATE spare_parts SET currentStock = currentStock + ?, updatedAt = ? WHERE id = ?`,
         [sp.quantity, now, sp.sparePartId]
       );
     }
-    db.run('DELETE FROM log_book_spare_parts WHERE logBookId = ?', [id]);
-    db.run('DELETE FROM log_book_items WHERE logBookId = ?', [id]);
+    await db.run('DELETE FROM log_book_spare_parts WHERE logBookId = ?', [id]);
+    await db.run('DELETE FROM log_book_items WHERE logBookId = ?', [id]);
 
     for (const item of data.items) {
-      const itemId = generateUUID();
-      db.run(
+      const itemId = generateId();
+      await db.run(
         `INSERT INTO log_book_items (id, logBookId, description, activityType, location, workOrderNo, durationMinutes, notes)
          VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
         [itemId, id, item.description, item.activityType || 'CORRECTIVE', item.location || data.location || '', item.workOrderNo || '', item.durationMinutes || 0, item.notes || '']
@@ -233,14 +224,14 @@ export async function updateLogBook(id: string, data: {
       if (item.spareParts && Array.isArray(item.spareParts)) {
         for (const sp of item.spareParts) {
           if (!sp.sparePartId || !sp.quantity) continue;
-          const spId = generateUUID();
-          const part = formatRow(db.exec('SELECT * FROM spare_parts WHERE id = ?', [sp.sparePartId]));
-          db.run(
+          const spId = generateId();
+          const part = formatRow(await db.exec('SELECT * FROM spare_parts WHERE id = ?', [sp.sparePartId]));
+          await db.run(
             `INSERT INTO log_book_spare_parts (id, logBookId, logBookItemId, sparePartId, quantity, unitCost, notes)
              VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [spId, id, itemId, sp.sparePartId, sp.quantity, sp.unitCost || (part?.unitCost ?? 0), sp.notes || '']
           );
-          db.run(
+          await db.run(
             `UPDATE spare_parts SET currentStock = currentStock - ?, updatedAt = ? WHERE id = ?`,
             [sp.quantity, now, sp.sparePartId]
           );
@@ -249,33 +240,23 @@ export async function updateLogBook(id: string, data: {
     }
   }
 
-  saveDb();
   return await getLogBookById(id);
 }
 
 export async function deleteLogBook(id: string) {
   const db = await getDb();
-  const existing = formatRow(db.exec('SELECT * FROM log_books WHERE id = ?', [id]));
+  const existing = formatRow(await db.exec('SELECT * FROM log_books WHERE id = ?', [id]));
   if (!existing) throw new NotFoundError('Log book not found');
 
-  db.run('BEGIN');
-  try {
-    const spItems = formatRows(db.exec('SELECT * FROM log_book_spare_parts WHERE logBookId = ?', [id]));
-    for (const sp of spItems) {
-      db.run(
-        `UPDATE spare_parts SET currentStock = currentStock + ?, updatedAt = ? WHERE id = ?`,
-        [sp.quantity, nowISO(), sp.sparePartId]
-      );
-    }
-
-    db.run('DELETE FROM log_book_spare_parts WHERE logBookId = ?', [id]);
-    db.run('DELETE FROM log_book_items WHERE logBookId = ?', [id]);
-    db.run('DELETE FROM log_books WHERE id = ?', [id]);
-
-    db.run('COMMIT');
-    saveDb();
-  } catch (e) {
-    db.run('ROLLBACK');
-    throw e;
+  const spItems = formatRows(await db.exec('SELECT * FROM log_book_spare_parts WHERE logBookId = ?', [id]));
+  for (const sp of spItems) {
+    await db.run(
+      `UPDATE spare_parts SET currentStock = currentStock + ?, updatedAt = ? WHERE id = ?`,
+      [sp.quantity, nowISO(), sp.sparePartId]
+    );
   }
+
+  await db.run('DELETE FROM log_book_spare_parts WHERE logBookId = ?', [id]);
+  await db.run('DELETE FROM log_book_items WHERE logBookId = ?', [id]);
+  await db.run('DELETE FROM log_books WHERE id = ?', [id]);
 }

@@ -1,4 +1,4 @@
-import { getDb, saveDb } from '../../database/connection';
+import { getDb } from '../../database/connection';
 import { generateId, nowISO, paginate } from '../../shared/utils';
 import { NotFoundError } from '../../shared/errors';
 
@@ -32,12 +32,12 @@ export class NotificationService {
       where += ' AND n.read = 0';
     }
 
-    const countResult = db.exec(`SELECT COUNT(*) as count FROM notifications n ${where}`, params);
+    const countResult = await db.exec(`SELECT COUNT(*) as count FROM notifications n ${where}`, params);
     const total = (countResult[0]?.values[0]?.[0] as number) || 0;
 
     const { offset, limit: lim } = paginate(page, limit);
     params.push(lim, offset);
-    const dataResult = db.exec(
+    const dataResult = await db.exec(
       `SELECT n.* FROM notifications n ${where} ORDER BY n.createdAt DESC LIMIT ? OFFSET ?`,
       params
     );
@@ -47,7 +47,7 @@ export class NotificationService {
 
   async getById(id: string): Promise<any> {
     const db = await getDb();
-    const result = db.exec('SELECT * FROM notifications WHERE id = ?', [id]);
+    const result = await db.exec('SELECT * FROM notifications WHERE id = ?', [id]);
     const row = formatRow(result);
     if (!row) {
       throw new NotFoundError('Notification not found');
@@ -57,21 +57,19 @@ export class NotificationService {
 
   async markAsRead(id: string, userId: string): Promise<any> {
     const db = await getDb();
-    const existingResult = db.exec('SELECT * FROM notifications WHERE id = ? AND userId = ?', [id, userId]);
+    const existingResult = await db.exec('SELECT * FROM notifications WHERE id = ? AND userId = ?', [id, userId]);
     const existing = formatRow(existingResult);
     if (!existing) {
       throw new NotFoundError('Notification not found');
     }
 
-    db.run('UPDATE notifications SET read = 1 WHERE id = ? AND userId = ?', [id, userId]);
-    saveDb();
+    await db.run('UPDATE notifications SET read = 1 WHERE id = ? AND userId = ?', [id, userId]);
     return this.getById(id);
   }
 
   async markAllAsRead(userId: string): Promise<void> {
     const db = await getDb();
-    db.run('UPDATE notifications SET read = 1 WHERE userId = ? AND read = 0', [userId]);
-    saveDb();
+    await db.run('UPDATE notifications SET read = 1 WHERE userId = ? AND read = 0', [userId]);
   }
 
   async create(userId: string, type: string, title: string, message: string, referenceType?: string, referenceId?: string): Promise<any> {
@@ -79,20 +77,19 @@ export class NotificationService {
     const id = generateId();
     const now = nowISO();
 
-    db.run(
+    await db.run(
       `INSERT INTO notifications (id, userId, type, title, message, referenceType, referenceId, read, createdAt)
        VALUES (?, ?, ?, ?, ?, ?, ?, 0, ?)`,
-      [id, userId, type, title, message, referenceType || null, referenceId || null, now]
+             [id, userId, type, title, message, referenceType || null, referenceId || null, now]
     );
 
-    saveDb();
-    const result = db.exec('SELECT * FROM notifications WHERE id = ?', [id]);
+    const result = await db.exec('SELECT * FROM notifications WHERE id = ?', [id]);
     return formatRow(result);
   }
 
   async getUnreadCount(userId: string): Promise<number> {
     const db = await getDb();
-    const result = db.exec('SELECT COUNT(*) as count FROM notifications WHERE userId = ? AND read = 0', [userId]);
+    const result = await db.exec('SELECT COUNT(*) as count FROM notifications WHERE userId = ? AND read = 0', [userId]);
     return (result[0]?.values[0]?.[0] as number) || 0;
   }
 }
