@@ -45,10 +45,23 @@ function createHttpDb(baseUrl: string, authToken: string) {
       throw new Error(result.message);
     }
 
-    return {
-      columns: result.result?.column_names || [],
-      values: (result.result?.rows || []).map((row: any[]) => row),
-    };
+    const res = result.result;
+    if (!res) return { columns: [], values: [] };
+
+    const columns = (res.cols || []).map((c: any) => c.name || c.column);
+    const values = (res.rows || []).map((row: any[]) =>
+      row.map((cell: any) => {
+        if (cell && typeof cell === 'object' && 'value' in cell) {
+          const v = cell.value;
+          if (cell.type === 'integer') return parseInt(v, 10);
+          if (cell.type === 'float') return parseFloat(v);
+          return v;
+        }
+        return cell;
+      })
+    );
+
+    return { columns, values };
   }
 
   async function executeBatch(statements: { sql: string; args?: any[] }[]): Promise<void> {
