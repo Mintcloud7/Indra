@@ -6,7 +6,6 @@ import { authenticate } from '../../middleware/auth';
 import { requirePermission } from '../../middleware/rbac';
 import multer from 'multer';
 import path from 'path';
-import fs from 'fs';
 
 const router = Router();
 
@@ -23,32 +22,15 @@ const DEFAULT_SETTINGS: Record<string, any> = {
   mtbf_warning_threshold: '168',
 };
 
-const uploadsDir = path.resolve(process.cwd(), 'uploads');
-let upload: multer.Multer;
-
-try {
-  if (!fs.existsSync(uploadsDir)) {
-    fs.mkdirSync(uploadsDir, { recursive: true });
-  }
-  const storage = multer.diskStorage({
-    destination: (_req, _file, cb) => cb(null, uploadsDir),
-    filename: (_req, file, cb) => {
-      const ext = path.extname(file.originalname);
-      cb(null, `logo-${Date.now()}${ext}`);
-    },
-  });
-  upload = multer({
-    storage,
-    limits: { fileSize: 2 * 1024 * 1024 },
-    fileFilter: (_req, file, cb) => {
-      const allowed = ['.png', '.jpg', '.jpeg', '.svg', '.webp'];
-      const ext = path.extname(file.originalname).toLowerCase();
-      cb(null, allowed.includes(ext));
-    },
-  });
-} catch {
-  upload = multer({ storage: multer.memoryStorage() });
-}
+const upload = multer({
+  storage: multer.memoryStorage(),
+  limits: { fileSize: 2 * 1024 * 1024 },
+  fileFilter: (_req, file, cb) => {
+    const allowed = ['.png', '.jpg', '.jpeg', '.svg', '.webp'];
+    const ext = path.extname(file.originalname).toLowerCase();
+    cb(null, allowed.includes(ext));
+  },
+});
 
 router.use(authenticate);
 

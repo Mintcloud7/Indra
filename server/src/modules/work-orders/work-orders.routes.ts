@@ -10,16 +10,8 @@ import { workOrderService } from './work-orders.service';
 
 const router = Router();
 
-const storage = multer.diskStorage({
-  destination: path.resolve(__dirname, '../../../uploads'),
-  filename: (req, file, cb) => {
-    const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
-  }
-});
-
 const upload = multer({
-  storage,
+  storage: multer.memoryStorage(),
   limits: { fileSize: 10 * 1024 * 1024 },
   fileFilter: (req, file, cb) => {
     const allowed = /jpeg|jpg|png|gif|pdf|doc|docx|xls|xlsx|txt|csv/;
