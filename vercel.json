@@ -1,5 +1,17 @@
 {
-  "installCommand": "npm install --prefix client",
+  "installCommand": "npm install --prefix client && npm install --prefix server",
   "buildCommand": "npm run build --prefix client",
-  "outputDirectory": "client/dist"
+  "outputDirectory": "client/dist",
+  "framework": "vite",
+  "functions": {
+    "api/index.ts": {
+      "maxDuration": 30,
+      "includeFiles": "server/src/**"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/(.*)", "destination": "/api/index.ts" },
+    { "source": "/(.*\\.(js|css|png|jpg|jpeg|gif|svg|ico|woff|woff2|ttf|eot))", "dest": "/client/dist/$1" },
+    { "source": "/(.*)", "dest": "/client/dist/index.html" }
+  ]
 }
