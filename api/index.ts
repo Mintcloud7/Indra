@@ -1,24 +1,26 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
-import { migrate } from '../server/src/database/migrate';
-import { errorHandler } from '../server/src/middleware/error';
-import { authenticate } from '../server/src/middleware/auth';
+import path from 'path';
+import { migrate } from './database/migrate';
+import { errorHandler } from './middleware/error';
+import { authenticate } from './middleware/auth';
 
-import authRoutes from '../server/src/modules/auth/auth.routes';
-import usersRoutes from '../server/src/modules/users/users.routes';
-import rolesRoutes from '../server/src/modules/roles/roles.routes';
-import assetsRoutes from '../server/src/modules/assets/assets.routes';
-import workOrdersRoutes from '../server/src/modules/work-orders/work-orders.routes';
-import pmRoutes from '../server/src/modules/preventive-maintenance/pm.routes';
-import inventoryRoutes from '../server/src/modules/inventory/inventory.routes';
-import notificationsRoutes from '../server/src/modules/notifications/notifications.routes';
-import reportsRoutes from '../server/src/modules/reports/reports.routes';
-import dashboardRoutes from '../server/src/modules/dashboard/dashboard.routes';
-import prRoutes from '../server/src/modules/purchase-requisitions/pr.routes';
-import auditLogsRoutes from '../server/src/modules/audit-logs/audit-logs.routes';
-import integrationsRoutes from '../server/src/modules/integrations/integrations.routes';
-import settingsRoutes from '../server/src/modules/settings/settings.routes';
-import logBooksRoutes from '../server/src/modules/log-books/log-books.routes';
+import authRoutes from './modules/auth/auth.routes';
+import usersRoutes from './modules/users/users.routes';
+import rolesRoutes from './modules/roles/roles.routes';
+import assetsRoutes from './modules/assets/assets.routes';
+import workOrdersRoutes from './modules/work-orders/work-orders.routes';
+import pmRoutes from './modules/preventive-maintenance/pm.routes';
+import inventoryRoutes from './modules/inventory/inventory.routes';
+import notificationsRoutes from './modules/notifications/notifications.routes';
+import reportsRoutes from './modules/reports/reports.routes';
+import dashboardRoutes from './modules/dashboard/dashboard.routes';
+import prRoutes from './modules/purchase-requisitions/pr.routes';
+import auditLogsRoutes from './modules/audit-logs/audit-logs.routes';
+import integrationsRoutes from './modules/integrations/integrations.routes';
+import settingsRoutes from './modules/settings/settings.routes';
+import logBooksRoutes from './modules/log-books/log-books.routes';
 
 const app = express();
 
