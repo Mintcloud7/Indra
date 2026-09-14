@@ -110,6 +110,48 @@ function createHttpDb(baseUrl: string, authToken: string) {
     run: async (sql: string, params?: any[]) => {
       await execute(sql, params);
     },
+    execBatch: async (statements: { sql: string; params?: any[] }[]) => {
+      const response = await fetch(`${httpUrl}/v2/pipeline`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${authToken}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          requests: statements.map(s => ({
+            type: 'execute',
+            stmt: { sql: s.sql, args: (s.params || []).map(convertArg) },
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        const text = await response.text();
+        throw new Error(`Turso HTTP batch error ${response.status}: ${text}`);
+      }
+
+      const data = await response.json();
+      return (data.results || []).map((r: any) => {
+        const res = r.response?.result;
+        if (!res) return { columns: [], values: [] };
+        const columns = (res.cols || []).map((c: any) => c.name || c.column);
+        const values = (res.rows || []).map((row: any[]) =>
+          row.map((cell: any) => {
+            if (cell && typeof cell === 'object') {
+              if (cell.type === 'null' || cell.type === undefined) return null;
+              if ('value' in cell) {
+                const v = cell.value;
+                if (cell.type === 'integer') return parseInt(v, 10);
+                if (cell.type === 'float') return parseFloat(v);
+                return v;
+              }
+            }
+            return cell;
+          })
+        );
+        return { columns, values };
+      });
+    },
   };
 }
 

@@ -49,16 +49,14 @@ export async function list(
     params.push(status);
   }
 
-  const countResult = await db.exec(`SELECT COUNT(*) as total FROM assets ${whereClause}`, params);
-  const total = (countResult[0]?.values[0]?.[0] as number) || 0;
+  const [countResult, dataResult] = await (db as any).execBatch([
+    { sql: `SELECT COUNT(*) as total FROM assets ${whereClause}`, params },
+    { sql: `SELECT assetCode, assetName, assetType, location, status, createdAt FROM assets ${whereClause} ORDER BY createdAt DESC LIMIT ? OFFSET ?`, params: [...params, lim, offset] },
+  ]);
 
-  params.push(lim, offset);
-  const dataResult = await db.exec(
-    `SELECT * FROM assets ${whereClause} ORDER BY createdAt DESC LIMIT ? OFFSET ?`,
-    params
-  );
+  const total = (countResult?.values?.[0]?.[0] as number) || 0;
 
-  return { data: formatRows(dataResult), total };
+  return { data: formatRows([dataResult]), total };
 }
 
 export async function getById(id: string) {
