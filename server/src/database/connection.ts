@@ -51,11 +51,14 @@ function createHttpDb(baseUrl: string, authToken: string) {
     const columns = (res.cols || []).map((c: any) => c.name || c.column);
     const values = (res.rows || []).map((row: any[]) =>
       row.map((cell: any) => {
-        if (cell && typeof cell === 'object' && 'value' in cell) {
-          const v = cell.value;
-          if (cell.type === 'integer') return parseInt(v, 10);
-          if (cell.type === 'float') return parseFloat(v);
-          return v;
+        if (cell && typeof cell === 'object') {
+          if (cell.type === 'null' || cell.type === undefined) return null;
+          if ('value' in cell) {
+            const v = cell.value;
+            if (cell.type === 'integer') return parseInt(v, 10);
+            if (cell.type === 'float') return parseFloat(v);
+            return v;
+          }
         }
         return cell;
       })
