@@ -8,6 +8,6 @@
   "rewrites": [
     { "source": "/api/:path*", "destination": "/api" },
     { "source": "/assets/:path*", "destination": "/assets/:path*" },
-    { "source": "/((?!api|assets|.*\\.).*)", "destination": "/index.html" }
+    { "source": "/((?!api|.*\\.).*)", "destination": "/index.html" }
   ]
 }
