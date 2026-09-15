@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import Sidebar from './Sidebar';
 import Header from './Header';
 import Breadcrumb from './Breadcrumb';
@@ -13,6 +14,11 @@ export default function Layout({ children }: LayoutProps) {
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const { toasts, removeToast } = useNotification();
+  const location = useLocation();
+
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
 
   const toastIcons = {
     success: <CheckCircle className="h-5 w-5 text-green-500" />,
@@ -40,13 +46,15 @@ export default function Layout({ children }: LayoutProps) {
       {mobileMenuOpen && (
         <div className="fixed inset-0 z-50 lg:hidden no-print">
           <div
-            className="fixed inset-0 bg-black bg-opacity-50"
+            className="fixed inset-0 bg-black bg-opacity-50 transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
           />
-          <Sidebar
-            isCollapsed={false}
-            onToggle={() => setMobileMenuOpen(false)}
-          />
+          <div className="animate-slide-in-left">
+            <Sidebar
+              isCollapsed={false}
+              onToggle={() => setMobileMenuOpen(false)}
+            />
+          </div>
         </div>
       )}
 
@@ -55,7 +63,7 @@ export default function Layout({ children }: LayoutProps) {
           <Header onMenuClick={() => setMobileMenuOpen(true)} />
         </div>
 
-        <main className="p-6 print:p-0">
+        <main className="p-3 sm:p-6 print:p-0">
           <div className="mb-6 no-print">
             <Breadcrumb />
           </div>

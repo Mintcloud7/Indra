@@ -20,7 +20,7 @@ export default Card;
 
 export function CardHeader({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={twMerge(clsx('px-6 py-4 border-b border-slate-200', className))}>
+    <div className={twMerge(clsx('px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200', className))}>
       {children}
     </div>
   );
@@ -28,7 +28,7 @@ export function CardHeader({ children, className }: { children: React.ReactNode;
 
 export function CardBody({ children, className }: { children: React.ReactNode; className?: string }) {
   return (
-    <div className={twMerge(clsx('px-6 py-4', className))}>
+    <div className={twMerge(clsx('px-4 sm:px-6 py-3 sm:py-4', className))}>
       {children}
     </div>
   );

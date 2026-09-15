@@ -65,16 +65,16 @@ export default function DashboardPage() {
     <div className="space-y-6">
       <h1 className="text-2xl font-bold text-slate-900">Dashboard</h1>
 
-      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3 sm:gap-4">
         {kpiCards.map((card) => (
-          <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-4 shadow-sm">
-            <div className="flex items-center gap-3">
-              <div className={`p-2 rounded-lg ${card.bg}`}>
+          <div key={card.label} className="bg-white rounded-xl border border-slate-200 p-3 sm:p-4 shadow-sm">
+            <div className="flex items-center gap-2 sm:gap-3">
+              <div className={`p-1.5 sm:p-2 rounded-lg ${card.bg}`}>
                 <div className={card.color}>{card.icon}</div>
               </div>
-              <div>
-                <p className="text-2xl font-bold text-slate-900">{card.value}</p>
-                <p className="text-xs text-slate-500">{card.label}</p>
+              <div className="min-w-0">
+                <p className="text-lg sm:text-2xl font-bold text-slate-900 truncate">{card.value}</p>
+                <p className="text-[10px] sm:text-xs text-slate-500 truncate">{card.label}</p>
               </div>
             </div>
           </div>
@@ -139,7 +139,7 @@ export default function DashboardPage() {
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-900">Recent Work Orders</h3>
             <Link to="/work-orders" className="text-sm text-blue-600 hover:text-blue-700">View all</Link>
           </div>
@@ -148,7 +148,7 @@ export default function DashboardPage() {
               <Link
                 key={wo.id || wo.woNumber || idx}
                 to={wo.id ? `/work-orders/${wo.id}` : '#'}
-                className="flex items-center justify-between px-6 py-3 hover:bg-slate-50 transition-colors"
+                className="flex items-center justify-between px-4 sm:px-6 py-3 hover:bg-slate-50 transition-colors"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-slate-900 truncate">{wo.woNumber}</p>
@@ -161,7 +161,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-900">Upcoming PM</h3>
             <Link to="/preventive-maintenance" className="text-sm text-blue-600 hover:text-blue-700">View all</Link>
           </div>
@@ -170,7 +170,7 @@ export default function DashboardPage() {
               <Link
                 key={pm.id || idx}
                 to={pm.id ? `/preventive-maintenance/${pm.id}` : '#'}
-                className="flex items-center justify-between px-6 py-3 hover:bg-slate-50 transition-colors"
+                className="flex items-center justify-between px-4 sm:px-6 py-3 hover:bg-slate-50 transition-colors"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-slate-900 truncate">{pm.title}</p>
@@ -183,7 +183,7 @@ export default function DashboardPage() {
         </div>
 
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm">
-          <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between">
+          <div className="px-4 sm:px-6 py-3 sm:py-4 border-b border-slate-200 flex items-center justify-between">
             <h3 className="text-sm font-semibold text-slate-900">Low Stock Alerts</h3>
             <Link to="/inventory/low-stock" className="text-sm text-blue-600 hover:text-blue-700">View all</Link>
           </div>
@@ -192,7 +192,7 @@ export default function DashboardPage() {
               <Link
                 key={item.id || item.itemCode || idx}
                 to={item.id ? `/inventory/spare-parts/${item.id}` : '/inventory/spare-parts'}
-                className="flex items-center justify-between px-6 py-3 hover:bg-slate-50 transition-colors"
+                className="flex items-center justify-between px-4 sm:px-6 py-3 hover:bg-slate-50 transition-colors"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-slate-900 truncate">{item.name || item.itemName}</p>

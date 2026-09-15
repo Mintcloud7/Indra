@@ -95,7 +95,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
   };
 
   return (
-    <header className="bg-white border-b border-slate-200 h-16 flex items-center justify-between px-6">
+    <header className="bg-white border-b border-slate-200 h-14 sm:h-16 flex items-center justify-between px-4 sm:px-6">
       <button
         onClick={onMenuClick}
         className="p-2 rounded-lg hover:bg-slate-100 lg:hidden"
@@ -120,7 +120,7 @@ export default function Header({ onMenuClick }: HeaderProps) {
           </button>
 
           {showNotifPopup && (
-            <div className="absolute right-0 mt-2 w-96 bg-white rounded-xl shadow-lg border border-slate-200 z-50 max-h-[480px] flex flex-col">
+            <div className="absolute right-0 mt-2 w-[calc(100vw-2rem)] max-w-sm sm:w-96 bg-white rounded-xl shadow-lg border border-slate-200 z-50 max-h-[480px] flex flex-col">
               <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200">
                 <h3 className="text-sm font-semibold text-slate-900">Notifications</h3>
                 {unreadCount > 0 && (
