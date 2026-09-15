@@ -24,6 +24,7 @@ import Badge from '../../components/ui/Badge';
 import { useNotification } from '../../context/NotificationContext';
 
 const DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+const DAYS_SHORT = ['S', 'M', 'T', 'W', 'T', 'F', 'S'];
 const MONTH_NAMES = [
   'January', 'February', 'March', 'April', 'May', 'June',
   'July', 'August', 'September', 'October', 'November', 'December',
@@ -485,12 +486,12 @@ export default function PMCalendarPage() {
       </div>
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-        <div className="flex items-center justify-between px-6 py-4 border-b border-slate-200 bg-slate-50">
+        <div className="flex flex-col sm:flex-row items-center justify-between px-3 sm:px-6 py-3 sm:py-4 border-b border-slate-200 bg-slate-50 gap-2">
           <div className="flex items-center gap-2">
             <button onClick={goToPrevMonth} className="p-2 rounded-lg hover:bg-slate-200 transition-colors">
               <ChevronLeft className="h-5 w-5 text-slate-600" />
             </button>
-            <h2 className="text-lg font-semibold text-slate-900 w-48 text-center">
+            <h2 className="text-base sm:text-lg font-semibold text-slate-900 sm:w-48 text-center">
               {MONTH_NAMES[currentMonth]} {currentYear}
             </h2>
             <button onClick={goToNextMonth} className="p-2 rounded-lg hover:bg-slate-200 transition-colors">
@@ -503,9 +504,10 @@ export default function PMCalendarPage() {
         </div>
 
         <div className="grid grid-cols-7 border-b border-slate-200 bg-slate-50">
-          {DAYS.map(day => (
-            <div key={day} className="py-2 text-center text-xs font-semibold text-slate-500 uppercase">
-              {day}
+          {DAYS.map((day, i) => (
+            <div key={day} className="py-2 text-center text-[10px] sm:text-xs font-semibold text-slate-500 uppercase">
+              <span className="hidden sm:inline">{day}</span>
+              <span className="sm:hidden">{DAYS_SHORT[i]}</span>
             </div>
           ))}
         </div>
@@ -516,27 +518,27 @@ export default function PMCalendarPage() {
             return (
               <div
                 key={idx}
-                className={`min-h-[100px] border-b border-r border-slate-100 p-1.5 cursor-pointer transition-colors hover:bg-slate-50 ${
+                className={`min-h-[60px] sm:min-h-[100px] border-b border-r border-slate-100 p-0.5 sm:p-1.5 cursor-pointer transition-colors hover:bg-slate-50 ${
                   !day.isCurrentMonth ? 'bg-slate-50/50' : ''
                 } ${day.isToday ? 'bg-blue-50' : ''} ${flashDate === day.date ? 'animate-pulse bg-yellow-100 ring-2 ring-yellow-400' : ''}`}
                 onClick={() => openDayDetail(day.date)}
               >
-                <div className={`text-xs font-medium mb-1 ${
+                <div className={`text-[10px] sm:text-xs font-medium mb-0.5 sm:mb-1 ${
                   day.isToday
-                    ? 'bg-blue-600 text-white w-6 h-6 rounded-full flex items-center justify-center'
+                    ? 'bg-blue-600 text-white w-5 h-5 sm:w-6 sm:h-6 rounded-full flex items-center justify-center'
                     : day.isCurrentMonth
                       ? 'text-slate-700'
                       : 'text-slate-400'
                 }`}>
                   {day.dayNum}
                 </div>
-                <div className="space-y-0.5">
-                  {dayPms.slice(0, 3).map(pm => {
+                <div className="space-y-px">
+                  {dayPms.slice(0, 2).map(pm => {
                     const completion = getPmCompletion(pm.id);
                     return (
                       <div
                         key={pm.id}
-                        className={`text-[10px] leading-tight px-1 py-0.5 rounded cursor-pointer ${
+                        className={`text-[8px] sm:text-[10px] leading-tight px-0.5 sm:px-1 py-px sm:py-0.5 rounded cursor-pointer ${
                           completion?.done
                             ? 'bg-green-100 text-green-700 border border-green-300'
                             : isOverdue(pm.nextDueDate) && pm.status === 'ACTIVE'
@@ -558,34 +560,34 @@ export default function PMCalendarPage() {
                       >
                         <div className="truncate font-medium">{pm.title}</div>
                         {completion && (
-                          <div className="flex items-center gap-1.5 mt-1">
+                          <div className="hidden sm:flex items-center gap-1.5 mt-1">
                             {completion.done ? (
-                              <CheckSquare className="h-5 w-5 shrink-0 text-green-600" />
+                              <CheckSquare className="h-4 w-4 shrink-0 text-green-600" />
                             ) : (
-                              <div className="flex items-center gap-1.5">
-                                <div className="w-16 h-2.5 bg-slate-200 rounded-full overflow-hidden">
+                              <div className="flex items-center gap-1">
+                                <div className="w-12 h-1.5 bg-slate-200 rounded-full overflow-hidden">
                                   <div
                                     className="h-full bg-yellow-500 rounded-full"
                                     style={{ width: `${(completion.completed / completion.total) * 100}%` }}
                                   />
                                 </div>
-                                <span className="text-xs font-bold text-slate-600">{completion.completed}/{completion.total}</span>
+                                <span className="text-[9px] font-bold text-slate-600">{completion.completed}/{completion.total}</span>
                               </div>
                              )}
                            </div>
-                         )}
-                       </div>
-                     );
-                   })}
-                   {dayPms.length > 3 && (
-                     <div className="text-[10px] text-slate-500 px-1">+{dayPms.length - 3} more</div>
-                   )}
-                 </div>
-               </div>
-             );
-           })}
-         </div>
-       </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                  {dayPms.length > 2 && (
+                    <div className="text-[8px] sm:text-[10px] text-slate-500 px-0.5 sm:px-1">+{dayPms.length - 2}</div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {showDayDetail && selectedDate && (
         <Modal
